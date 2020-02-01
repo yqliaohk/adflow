@@ -126,6 +126,9 @@ contains
 &       ovrnts*globalvals(isepsensor, sps)
       funcvalues(costfunccavitation) = funcvalues(costfunccavitation) + &
 &       ovrnts*globalvals(icavitation, sps)
+      funcvalues(costfuncksmincp) = funcvalues(costfuncksmincp) + ovrnts&
+&       *globalvals(iksmincp, sps)
+! average over ntime might not be proper for ksmincp
       funcvalues(costfuncaxismoment) = funcvalues(costfuncaxismoment) + &
 &       ovrnts*globalvals(iaxismoment, sps)
       funcvalues(costfuncsepsensoravgx) = funcvalues(&
@@ -307,10 +310,13 @@ contains
     real(kind=realtype) :: mx, my, mz, cellarea, m0x, m0y, m0z, mvaxis, &
 &   mpaxis
     real(kind=realtype) :: cperror, cperror2
+    real(kind=realtype) :: mincp, kscp, maxsensorcp
     intrinsic mod
     intrinsic max
     intrinsic sqrt
     intrinsic exp
+    intrinsic min
+    intrinsic log
     select case  (bcfaceid(mm)) 
     case (imin, jmin, kmin) 
       fact = -one
@@ -342,6 +348,9 @@ contains
     mpaxis = zero
     mvaxis = zero
     cperror2 = zero
+    mincp = zero
+    kscp = zero
+    maxsensorcp = zero
 !
 !         integrate the inviscid contribution over the solid walls,
 !         either inviscid or viscous. the integration is done with
@@ -461,8 +470,32 @@ contains
         sensor1 = one/(one+exp(-(2*10*sensor1)))
         sensor1 = sensor1*cellarea*blk
         cavitation = cavitation + sensor1
+        if (mincp .gt. cp) then
+          mincp = cp
+        else
+          mincp = mincp
+        end if
       end if
     end do
+! aggregate cp locally using the local mincp
+!$ad ii-loop
+    if (computecavitation) then
+      maxsensorcp = -mincp
+      do ii=0,(bcdata(mm)%jnend-bcdata(mm)%jnbeg)*(bcdata(mm)%inend-&
+&         bcdata(mm)%inbeg)-1
+        i = mod(ii, bcdata(mm)%inend - bcdata(mm)%inbeg) + bcdata(mm)%&
+&         inbeg + 1
+        j = ii/(bcdata(mm)%inend-bcdata(mm)%inbeg) + bcdata(mm)%jnbeg + &
+&         1
+        plocal = pp2(i, j)
+        tmp = two/(gammainf*machcoef*machcoef)
+        cp = tmp*(plocal-pinf)
+        sensor1 = -cp
+        kscp = kscp + exp(100*(sensor1-maxsensorcp))
+      end do
+      kscp = maxsensorcp + 1/100*log(kscp)
+      localvalues(iksmincp) = kscp
+    end if
 !
 ! integration of the viscous forces.
 ! only for viscous boundaries.

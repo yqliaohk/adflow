@@ -105,6 +105,8 @@ contains
 
        funcValues(costFuncSepSensor) = funcValues(costFuncSepSensor) + ovrNTS*globalVals(iSepSensor, sps)
        funcValues(costFuncCavitation) = funcValues(costFuncCavitation) + ovrNTS*globalVals(iCavitation, sps)
+       funcValues(costFuncKsminCp) = funcValues(costFuncKsminCp) + ovrNTS*globalVals(iksminCp, sps) 
+       ! Average over ntime might not be proper for ksmincp
        funcValues(costFuncAxisMoment) = funcValues(costFuncAxisMoment) + ovrNTS*globalVals(iAxisMoment, sps)
        funcValues(costFuncSepSensorAvgX) = funcValues(costFuncSepSensorAvgX) + ovrNTS*globalVals(iSepAvg  , sps)
        funcValues(costFuncSepSensorAvgY) = funcValues(costFuncSepSensorAvgY) + ovrNTS*globalVals(iSepAvg+1, sps)
@@ -335,6 +337,7 @@ contains
     real(kind=realType), dimension(3,2) :: axisPoints
     real(kind=realType) :: mx, my, mz, cellArea, m0x, m0y, m0z, Mvaxis, Mpaxis
     real(kind=realType) :: CpError, CpError2
+    real(kind=realType) :: minCp, ksCp, maxSensorCp
 
     select case (BCFaceID(mm))
     case (iMin, jMin, kMin)
@@ -369,6 +372,9 @@ contains
     sepSensorAvg = zero
     Mpaxis = zero; Mvaxis = zero;
     CpError2 = zero;
+    minCp = zero;
+    ksCp = zero;
+    maxSensorCp = zero;
 
     !
     !         Integrate the inviscid contribution over the solid walls,
@@ -508,8 +514,29 @@ contains
           Sensor1 = one/(one+exp(-2*10*Sensor1))
           Sensor1 = Sensor1 * cellArea * blk
           Cavitation = Cavitation + Sensor1
+          minCp = min(minCp,Cp)
        end if
     enddo
+
+
+    ! Aggregate Cp locally using the local minCp
+    !$AD II-LOOP
+    if (computeCavitation)  then
+    maxSensorCp = -minCp
+     do ii=0,(BCData(mm)%jnEnd - bcData(mm)%jnBeg)*(bcData(mm)%inEnd - bcData(mm)%inBeg) -1
+          i = mod(ii, (bcData(mm)%inEnd-bcData(mm)%inBeg)) + bcData(mm)%inBeg + 1
+          j = ii/(bcData(mm)%inEnd-bcData(mm)%inBeg) + bcData(mm)%jnBeg + 1
+          
+          plocal = pp2(i,j)
+          tmp = two/(gammaInf*MachCoef*MachCoef)
+          Cp = tmp*(plocal-pinf)
+          Sensor1 = -Cp
+          ksCp = ksCp + exp(100*(Sensor1-maxSensorCp))
+
+     end do
+     ksCp = maxSensorCp + 1/100*log(ksCp)
+     localValues(iksminCp) = ksCp
+    end if
 
     !
     ! Integration of the viscous forces.
@@ -661,6 +688,7 @@ contains
     localValues(iSepAvg:iSepAvg+2) = localValues(iSepAvg:iSepAvg+2) + sepSensorAvg
     localValues(iAxisMoment) = localValues(iAxisMoment) + Mpaxis + Mvaxis
     localValues(iCpError2) = localValues(iCpError2) + CpError2
+
 
 #ifndef USE_TAPENADE
     localValues(iyPlus) = max(localValues(iyPlus), yplusMax)
@@ -941,6 +969,7 @@ contains
     use zipperIntegrations, only :integrateZippers
     use userSurfaceIntegrations, only : integrateUserSurfaces
     use actuatorRegion, only : integrateActuatorRegions
+    use inputCostFunctions
     implicit none
 
     ! Input/Output Variables
@@ -952,6 +981,12 @@ contains
     real(kind=realType), dimension(nLocalValues, nTimeIntervalsSpectral) :: localVal, globalVal
     integer(kind=intType) :: nn, sps, ierr, iGroup, nFam
     integer(kind=intType), dimension(:), pointer :: famList
+
+    !Some local ks variables
+    real(kind=realType), dimension(nDom, nTimeIntervalsSpectral) :: ksDomCpvalues
+    real(kind=realType), dimension(nTimeIntervalsSpectral) :: maxvalue, ksDomCp, ksDomCpsum
+    ! Some local MPI variables
+    real(kind=realType), dimension(nTimeIntervalsSpectral) :: maxvalue_recbuf, ksDomCp_sendbuf
     ! Master loop over the each of the groups we have
 
     groupLoop: do iGroup=1, size(famLists, 1)
@@ -961,12 +996,18 @@ contains
        famList => famLists(iGroup, 2:2+nFam-1)
        funcValues = zero
        localVal = zero
+       maxvalue = zero
+       ksDomCpvalues = zero
+       ksDomCp = zero
+       ksDomCpsum = zero
 
        do sps=1, nTimeIntervalsSpectral
           ! Integrate the normal block surfaces.
           do nn=1, nDom
              call setPointers(nn, 1, sps)
              call integrateSurfaces(localval(:, sps), famList)
+             ksDomCpvalues(nn,sps) = localval(iksminCp,sps)
+             maxvalue(sps) = max(maxvalue(sps), localval(iksminCp,sps))
           end do
 
           ! Integrate any zippers we have
@@ -978,10 +1019,38 @@ contains
           ! Integrate any actuator regions we have
           call integrateActuatorRegions(localVal(:, sps), famList, sps)
        end do
+       
+       if (computeCavitation) then
+         do sps=1, nTimeIntervalsSpectral
+         do nn =1, nDom
+            ksDomCpsum(sps) = ksDomCpsum(sps) + exp(100*(ksDomCpvalues(nn,sps)-maxvalue(sps)))
+         end do
+            ksDomCp(sps) = maxvalue(sps) + 1/100*log(ksDomCpsum(sps))
+            ksDomCp_sendbuf(sps) = ksDomCp(sps)
+         end do
 
-       ! Now we need to reduce all the cost functions
+         ! Now we need to reduce all the cost functions
+         call mpi_allreduce(ksDomCp_sendbuf, maxvalue_recbuf, nTimeIntervalsSpectral, adflow_real, &
+               mpi_max, ADflow_comm_world, ierr)
+
+         
+         do sps =1, nTimeIntervalsSpectral
+            maxvalue(sps) = maxvalue_recbuf(sps)
+            localval(iksminCp,sps) = exp(100*(ksDomCp(sps)-maxvalue(sps)))
+         end do
+       end if 
+
        call mpi_allreduce(localval, globalVal, nLocalValues*nTimeIntervalsSpectral, adflow_real, &
             MPI_SUM, adflow_comm_world, ierr)
+
+      
+       if (computeCavitation) then
+         do sps =1, nTimeIntervalsSpectral
+            globalVal(iksminCp,sps) = maxvalue(sps) + 1/100*log(globalVal(iksminCp,sps))
+         end do
+       end if 
+
+       
        call EChk(ierr, __FILE__, __LINE__)
 
        ! Call the final routine that will comptue all of our functions of
@@ -1011,10 +1080,10 @@ contains
          sfacei, sfacej, sfacek, gamma, rev, p, viscSubface
     use utils, only : setBCPointers, isWallType
     use sorting, only : famInList
-    ! Tapenade needs to see these modules that the callees use.
     use BCPointers
     use flowVarRefState
     use inputPhysics
+    use inputCostFunctions
 
     implicit none
 
@@ -1023,8 +1092,15 @@ contains
     integer(kind=intType), dimension(:), intent(in) :: famList
 
     ! Working variables
-    integer(kind=intType) :: mm
+    integer(kind=intType) :: mm, nwall
+    real(kind=realType), dimension(nBocos) :: kswallvalues
+    real(kind=realType) :: maxvalue, kswall
 
+    ! nwall: number of walltype
+    nwall = zero
+    kswall = zero
+    maxvalue =zero
+    kswallvalues = zero
     ! Loop over all possible boundary conditions
     bocos: do mm=1, nBocos
 
@@ -1039,6 +1115,15 @@ contains
           ! no post gathered integrations currently
           isWall: if( isWallType(BCType(mm)) ) then
              call wallIntegrationFace(localvalues, mm)
+             if (computeCavitation) then
+               nwall = nwall + 1
+               kswallvalues(nwall) = localValues(iksminCp)
+               if (nwall == 1) then
+                  maxvalue = kswallvalues(nwall)
+               else
+                  maxvalue = max(maxvalue,kswallvalues(nwall))
+               end if
+             end if
           end if isWall
 
           isInflowOutflow: if (BCType(mm) == SubsonicInflow .or. &
@@ -1051,6 +1136,20 @@ contains
 
        end if famInclude
     end do bocos
+
+
+     ! aggregate the ksCp from wallintegrations to a single ks value and 
+     ! then pass it to localvalues so that it can be passed back to function that 
+     ! calls integratesurfaces
+
+   if (computeCavitation) then
+
+      do mm=1, nwall
+         kswall = kswall + exp(100*(kswallvalues(mm)-maxvalue))
+      end do
+      localValues(iksminCp) = maxvalue + 1/100*log(kswall)
+
+   end if
 
   end subroutine integrateSurfaces
 
@@ -1066,6 +1165,7 @@ contains
     use utils, only : setBCPointers_d, isWallType
     use sorting, only : famInList
     use surfaceIntegrations_d, only : wallIntegrationFace_d, flowIntegrationFace_d
+    use inputCostFunctions
     implicit none
 
     ! Input/output Variables
@@ -1073,10 +1173,19 @@ contains
     integer(kind=intType), dimension(:), intent(in) :: famList
 
     ! Working variables
-    integer(kind=intType) :: mm
+    integer(kind=intType) :: mm, nwall
+    real(kind=realType), dimension(nBocos) :: kswallvalues, kswallvaluesd
+    real(kind=realType) :: maxvalue, kswall, kswalld
 
+    ! nwall: number of walltype
+    nwall = zero
+    kswall = zero
+    kswalld = zero
+    maxvalue = zero
+    kswallvalues = zero
+    kswallvaluesd = zero
     ! Loop over all possible boundary conditions
-    do mm=1, nBocos
+    bocos: do mm=1, nBocos
        ! Determine if this boundary condition is to be incldued in the
        ! currently active group
        famInclude: if (famInList(BCData(mm)%famID, famList)) then
@@ -1088,6 +1197,16 @@ contains
           ! not post gathered integrations currently
           isWall: if( isWallType(BCType(mm)) ) then
              call wallIntegrationFace_d(localValues, localValuesd, mm)
+             if (computeCavitation) then
+               nwall = nwall + 1
+               kswallvalues(nwall) = localValues(iksminCp)
+               kswallvaluesd(nwall) = localValuesd(iksminCp)
+               if (nwall == 1) then
+                  maxvalue = kswallvalues(nwall)
+               else
+                  maxvalue = max(maxvalue,kswallvalues(nwall))
+               end if
+             end if
           end if isWall
 
           isInflowOutflow: if (BCType(mm) == SubsonicInflow .or. &
@@ -1100,7 +1219,18 @@ contains
 
           end if isInflowOutflow
        end if famInclude
-    end do
+    end do bocos
+
+    if (computeCavitation) then
+
+      do mm=1, nwall
+         kswall = kswall + exp(100*(kswallvalues(mm)-maxvalue))
+         kswalld = kswalld + exp(100*(kswallvalues(mm)-maxvalue))*kswallvaluesd(mm)
+      end do
+      localValues(iksminCp) = maxvalue + 1/100*log(kswall)
+      localValuesd(iksminCp) = kswalld/kswall
+
+    end if
   end subroutine integrateSurfaces_d
 
   subroutine integrateSurfaces_b(localValues, localValuesd, famList)
@@ -1111,40 +1241,106 @@ contains
     ! Reverse mode linearization of integrateSurfaces
     use constants
     use blockPointers, only : nBocos, BCData, BCType, bcDatad
-    use utils, only : setBCPointers_d, isWallType
+    use utils, only : setBCPointers_d, isWallType, setBCPointers
     use sorting, only : famInList
     use surfaceIntegrations_b, only : wallIntegrationFace_b, flowIntegrationFace_b
+    use inputCostFunctions
     implicit none
 
     ! Input/output Variables
     real(kind=realType), dimension(nLocalValues), intent(inout) :: localValues, localValuesd
     integer(kind=intType), dimension(:), intent(in) :: famList
     ! Working variables
-    integer(kind=intType) :: mm
+    integer(kind=intType) :: mm, nwall
+    real(kind=realType), dimension(nBocos) :: kswallvalues, kswallvaluesd
+    real(kind=realType) :: maxvalue, kswall, kswalld
 
+    ! nwall: number of walltype
+    nwall = zero
+    kswall = zero
+    kswalld = zero
+    maxvalue = zero
+    kswallvalues = zero
+    kswallvaluesd = zero
+
+    if (computeCavitation) then
+
+    bocos: do mm=1, nBocos
+
+       ! Determine if this boundary condition is to be incldued in the
+       ! currently active group
+       famInclude1: if (famInList(BCData(mm)%famID, famList)) then
+
+          ! Set a bunch of pointers depending on the face id to make
+          ! a generic treatment possible.
+          call setBCPointers(mm, .True.)
+
+          ! no post gathered integrations currently
+          isWall1: if( isWallType(BCType(mm)) ) then
+             call wallIntegrationFace(localvalues, mm)
+             nwall = nwall + 1
+             kswallvalues(nwall) = localValues(iksminCp)
+             if (nwall == 1) then
+               maxvalue = kswallvalues(nwall)
+             else
+               maxvalue = max(maxvalue,kswallvalues(nwall))
+             end if
+          end if isWall1
+
+          isInflowOutflow1: if (BCType(mm) == SubsonicInflow .or. &
+               BCType(mm) == SupersonicInflow) then
+             call flowIntegrationFace(.true., localValues, mm)
+          else if (BCType(mm) == SubsonicOutflow .or. &
+               BCType(mm) == SupersonicOutflow) then
+             call flowIntegrationFace(.false., localValues, mm)
+          end if isInflowOutflow1
+
+       end if famInclude1
+    end do bocos
+    
+    ! aggregate the ksCp from wallintegrations to a single ks value and 
+     ! then pass it to localvalues so that it can be passed back to function that 
+     ! calls integratesurfaces
+
+
+   do mm=1, nwall
+      kswall = kswall + exp(100*(kswallvalues(mm)-maxvalue))
+   end do
+
+    kswalld = localValuesd(iksminCp)/(kswall)
+
+    do mm=1, nwall
+      kswallvaluesd(mm) = kswalld*exp(100*(kswallvalues(mm)-maxvalue))
+   end do
+
+   end if
+    
+    nwall = 0
     ! Call the individual integration routines.
     do mm=1, nBocos
        ! Determine if this boundary condition is to be incldued in the
        ! currently active group
-       famInclude: if (famInList(BCData(mm)%famID, famList)) then
+       famInclude2: if (famInList(BCData(mm)%famID, famList)) then
 
           ! Set a bunch of pointers depending on the face id to make
           ! a generic treatment possible.
           call setBCPointers_d(mm, .True.)
 
           ! not post gathered integrations currently
-          isWall: if( isWallType(BCType(mm)) ) then
+          isWall2: if( isWallType(BCType(mm)) ) then
+             nwall = nwall + 1
+             localValuesd(iksminCp) = kswallvaluesd(nwall)
              call wallIntegrationFace_b(localValues, localValuesd, mm)
-          end if isWall
+          end if isWall2
 
-          isInflowOutflow: if (BCType(mm) == SubsonicInflow .or. &
+          isInflowOutflow2: if (BCType(mm) == SubsonicInflow .or. &
                BCType(mm) == SupersonicInflow) then
              call flowIntegrationFace_b(.true., localValues, localValuesd, mm)
           else if (BCType(mm) == SubsonicOutflow .or. &
                BCType(mm) == SupersonicOutflow) then
              call flowIntegrationFace_b(.false., localValues, localValuesd, mm)
-          end if isInflowOutflow
-       end if famInclude
+          end if isInflowOutflow2
+       end if famInclude2
     end do
   end subroutine integrateSurfaces_b
 
@@ -1163,6 +1359,7 @@ contains
     use zipperIntegrations, only :integrateZippers_d
     use userSurfaceIntegrations, only : integrateUserSurfaces_d
     use actuatorRegion, only : integrateActuatorRegions_d
+    use inputCostFunctions
     implicit none
 
     ! Input/Output Variables
@@ -1175,6 +1372,14 @@ contains
     integer(kind=intType) :: nn, sps, ierr, iGroup, nFam
     integer(kind=intType), dimension(:), pointer :: famList
 
+    !Some local ks variables
+    real(kind=realType), dimension(nDom, nTimeIntervalsSpectral) :: ksDomCpvalues, ksDomCpvaluesd
+    real(kind=realType), dimension(nTimeIntervalsSpectral) :: maxvalue, ksDomCp, ksDomCpd, ksDomCpsum, ksDomCpsumd
+    
+    ! Some local MPI variables
+    real(kind=realType), dimension(nTimeIntervalsSpectral) :: maxvalue_recbuf, ksDomCp_sendbuf
+    ! Master loop over the each of the groups we have
+
     groupLoop: do iGroup=1, size(famLists, 1)
 
        ! Extract the current family list
@@ -1183,11 +1388,24 @@ contains
 
        localVal = zero
        localVald = zero
+       ksDomCpvalues = zero
+       ksDomCp = zero
+       ksDomCpvaluesd = zero
+       ksDomCpd = zero
+       ksDomCpsum = zero
+       ksDomCpsumd = zero
+       maxvalue = zero
+
        do sps=1, nTimeIntervalsSpectral
           ! Integrate the normal block surfaces.
           do nn=1, nDom
              call setPointers_d(nn, 1, sps)
              call integrateSurfaces_d(localval(:, sps), localvald(:, sps), famList)
+             ksDomCpvalues(nn,sps) = localval(iksminCp,sps)
+             ksDomCpvaluesd(nn,sps) = localvald(iksminCp,sps)
+            if (localval(iksminCp,sps) .gt. maxvalue(sps)) then 
+               maxvalue(sps) =  localval(iksminCp,sps)
+             end if
           end do
 
           ! Integrate any zippers we have
@@ -1199,8 +1417,31 @@ contains
           ! Integrate any actuator regions we have
           call integrateActuatorRegions_d(localVal(:, sps), localVald(:, sps), famList, sps)
        end do
+       
+       if (computeCavitation) then 
+       do sps=1, nTimeIntervalsSpectral
+         do nn =1, nDom
+            ksDomCpsum(sps) = ksDomCpsum(sps) + exp(100*(ksDomCpvalues(nn,sps)-maxvalue(sps)))
+            ksDomCpsumd(sps) = ksDomCpsumd(sps) + exp(100*(ksDomCpvalues(nn,sps)-maxvalue(sps)))*ksDomCpvaluesd(nn,sps)
+         end do
+         ksDomCp(sps) = maxvalue(sps) + 1/100*log(ksDomCpsum(sps))
+         ksDomCpd(sps) = ksDomCpsumd(sps)/ksDomCpsum(sps)
+         ksDomCp_sendbuf(sps) = ksDomCp(sps)
+       end do
+  
 
        ! Now we need to reduce all the cost functions
+       call mpi_allreduce(ksDomCp_sendbuf, maxvalue_recbuf, nTimeIntervalsSpectral, adflow_real, &
+               mpi_max, ADflow_comm_world, ierr)
+
+       do sps =1, nTimeIntervalsSpectral
+            maxvalue(sps) = maxvalue_recbuf(sps)
+            localval(iksminCp,sps) = exp(100*(ksDomCp(sps)-maxvalue(sps)))
+            localvald(iksminCp,sps) = localval(iksminCp,sps)*ksDomCpd(sps)
+         end do
+       end if 
+
+
        call mpi_allreduce(localval, globalVal, nLocalValues*nTimeIntervalsSpectral, adflow_real, &
             MPI_SUM, adflow_comm_world, ierr)
        call EChk(ierr, __FILE__, __LINE__)
@@ -1209,6 +1450,15 @@ contains
        call mpi_allreduce(localvald, globalVald, nLocalValues*nTimeIntervalsSpectral, adflow_real, &
             MPI_SUM, adflow_comm_world, ierr)
        call EChk(ierr, __FILE__, __LINE__)
+
+       if (computeCavitation) then
+
+         do sps=1, nTimeIntervalsSpectral
+            globalVald(iksminCp,sps) = globalVald(iksminCp,sps)/globalVal(iksminCp,sps)
+            globalVal(iksminCp,sps) = maxvalue(sps) + 1/100*log(globalVal(iksminCp,sps))
+         end do
+
+       end if
 
        ! Call the final routine that will comptue all of our functions of
        ! interest.
@@ -1229,16 +1479,16 @@ contains
     ! -----------------------------------------------------------------------
 
     use constants
-    use communication, only : myid
     use inputTSStabDeriv, only : TSSTability
     use inputTimeSpectral , only : nTimeIntervalsSpectral
-    use communication, only : adflow_comm_world
+    use communication, only : adflow_comm_world, myid
     use blockPointers, only : nDom
     use utils, only : setPointers_b, EChk, setPointers
     use surfaceIntegrations_b, only : getCostFunctions_b
-    use zipperIntegrations, only :integrateZippers_b
-    use userSurfaceIntegrations, only : integrateUserSurfaces_b
-    use actuatorRegion, only : integrateActuatorRegions_b
+    use zipperIntegrations, only :integrateZippers_b, integrateZippers
+    use userSurfaceIntegrations, only : integrateUserSurfaces_b, integrateUserSurfaces
+    use actuatorRegion, only : integrateActuatorRegions_b, integrateActuatorRegions
+    use inputCostFunctions
     implicit none
 
     ! Input/Output Variables
@@ -1246,56 +1496,149 @@ contains
     real(kind=realType), dimension(:, :) :: funcValues, funcValuesd
 
     ! Working
-    real(kind=realType), dimension(nLocalValues, nTimeIntervalsSpectral) :: localVal, globalVal
+    real(kind=realType), dimension(nLocalValues, nTimeIntervalsSpectral) :: localVal, globalVal, localvaltemp, globalValTemp
     real(kind=realType), dimension(nLocalValues, nTimeIntervalsSpectral) :: localVald, globalVald
     real(kind=realType), dimension(nLocalValues, nTimeIntervalsSpectral, size(famLists, 1)) :: globalValues
     integer(kind=intType) :: nn, sps, ierr, iGroup, nFam
     integer(kind=intType), dimension(:), pointer :: famList
 
+    !Some local ks variables
+    real(kind=realType), dimension(nDom, nTimeIntervalsSpectral) :: ksDomCpvalues, ksDomCpvaluesd
+    real(kind=realType), dimension(nTimeIntervalsSpectral) :: maxvaluetemp1, maxvaluetemp0, ksDomCp, ksDomCpd
+        real(kind=realType), dimension(nTimeIntervalsSpectral) :: ksDomCpSum, ksDomCpSumd
+    ! Some local MPI variables
+    real(kind=realType), dimension(nTimeIntervalsSpectral) :: maxvalue_recbuf, ksDomCp_sendbuf
 
-    call getSolution(famLists, funcValues, globalValues)
+   
+   call getSolution(famLists, funcValues, globalValues)
 
-    groupLoop: do iGroup=1, size(famLists, 1)
+   groupLoop: do iGroup=1, size(famLists, 1)
 
-       ! Extract the current family list
-       nFam = famLists(iGroup, 1)
-       famList => famLists(iGroup, 2:2+nFam-1)
+      ! Extract the current family list
+      nFam = famLists(iGroup, 1)
+      famList => famLists(iGroup, 2:2+nFam-1)
 
-       localVal = zero
-       localVald = zero
+      localVal = zero
+      localVald = zero
+      localValtemp = zero
+      globalValTemp = zero
+      maxvaluetemp0 = zero
+      maxvaluetemp1 = zero
+      ksDomCpvalues = zero
+      ksDomCpvaluesd = zero
+      ksDomCp = zero
+      ksDomCpd = zero
+      ksDomCpsum = zero
+      ksDomCpsumd = zero
 
-       ! Retrive the forward pass values from getSolution
-       globalVal = globalValues(:, :, iGroup)
 
-       if (myid == 0) then
-          call getCostFunctions_b(globalVal, globalVald, funcValues(:, iGroup), funcValuesd(:, iGroup))
-          localVald = globalVald
-       end if
+      ! Retrive the forward pass values from getSolution
+      globalVal = globalValues(:, :, iGroup)
 
-       ! Now we need to bcast out the localValues to all procs.
-       call mpi_bcast(localVald, nLocalValues*nTimeIntervalsSpectral, &
-            adflow_real, 0, adflow_comm_world, ierr)
-       call EChk(ierr, __FILE__, __LINE__)
+      ! Retrive some intermediate variable values from getsolution
 
-       do sps=1, nTimeIntervalsSpectral
-
-          ! Integrate any actuator regions we have:
-          call integrateActuatorRegions_b(localVal(:, sps), localVald(:, sps), famList, sps)
-
-          ! Integrate any user-supplied planes as have as well.
-          call integrateUserSurfaces_b(localVal(:, sps), localVald(:, sps), famList, sps)
-
-          ! Integrate any zippers we have
-          call integrateZippers_b(localVal(:, sps), localVald(:, sps), famList, sps)
-
+      do sps=1, nTimeIntervalsSpectral
           ! Integrate the normal block surfaces.
           do nn=1, nDom
-             call setPointers_b(nn, 1, sps)
-             call integrateSurfaces_b(localval(:, sps), localVald(:, sps), famList)
+             call setPointers(nn, 1, sps)
+             call integrateSurfaces(localvaltemp(:, sps), famList)
+             ksDomCpvalues(nn,sps) = localvaltemp(iksminCp,sps)
+             if (localvaltemp(iksminCp,sps) .gt. maxvaluetemp1(sps)) then 
+               maxvaluetemp1(sps) =  localvaltemp(iksminCp,sps)
+             end if
           end do
 
+          ! Integrate any zippers we have
+          call integrateZippers(localValtemp(:, sps), famList, sps)
+
+          ! Integrate any user-supplied surfaces as have as well.
+          call integrateUserSurfaces(localValtemp(:, sps), famList, sps)
+
+          ! Integrate any actuator regions we have
+          call integrateActuatorRegions(localValtemp(:, sps), famList, sps)
        end do
-    end do groupLoop
+       
+       if (computeCavitation) then
+         do sps=1, nTimeIntervalsSpectral
+         do nn =1, nDom
+            ksDomCpsum(sps) = ksDomCpsum(sps) + exp(100*(ksDomCpvalues(nn,sps)-maxvaluetemp1(sps)))
+         end do
+            ksDomCp(sps) = maxvaluetemp1(sps) + 1/100*log(ksDomCpsum(sps))
+            ksDomCp_sendbuf(sps) = ksDomCp(sps)
+         end do
+
+         ! Now we need to reduce all the cost functions
+         call mpi_allreduce(ksDomCp_sendbuf, maxvalue_recbuf, nTimeIntervalsSpectral, adflow_real, &
+               mpi_max, ADflow_comm_world, ierr)
+
+         
+         do sps =1, nTimeIntervalsSpectral
+            maxvaluetemp0(sps) = maxvalue_recbuf(sps)
+            localvaltemp(iksminCp,sps) = exp(100*(ksDomCp(sps)-maxvaluetemp0(sps)))
+         end do
+       end if 
+
+       call mpi_allreduce(localvaltemp, globalValtemp, nLocalValues*nTimeIntervalsSpectral, adflow_real, &
+            MPI_SUM, adflow_comm_world, ierr)
+       ! End retriving data
+
+      if (myid == 0) then
+         call getCostFunctions_b(globalVal, globalVald, funcValues(:, iGroup), funcValuesd(:, iGroup))
+
+       if (computeCavitation) then
+         do sps =1, nTimeIntervalsSpectral
+            ! globalVal(iksminCp,sps) = maxvalue(sps) + 1/100*log(globalVal(iksminCp,sps))
+            globalVald(iksminCp,sps) = globalVald(iksminCp,sps)/(globalValTemp(iksminCp,sps))
+         end do
+       end if 
+       localVald = globalVald
+      end if
+
+      ! Now we need to bcast out the localValues to all procs.
+      call mpi_bcast(localVald, nLocalValues*nTimeIntervalsSpectral, &
+            adflow_real, 0, adflow_comm_world, ierr)
+      call EChk(ierr, __FILE__, __LINE__)
+     
+
+       if (computeCavitation) then
+
+         do sps =1, nTimeIntervalsSpectral
+            ! localval(iksminCp,sps) = exp(100*(localval(iksminCp,sps)-maxvalue))
+            ksDomCpd(sps) = localvaltemp(iksminCp,sps)*localvald(iksminCp,sps)
+
+         end do
+
+         do sps=1, nTimeIntervalsSpectral
+            ksDomCpsumd(sps) = ksDomCpd(sps)/(ksDomCpsum(sps))
+         do nn =1, nDom
+            ksDomCpvaluesd(nn,sps) = exp(100*(ksDomCpvalues(nn,sps)-maxvaluetemp1(sps)))*ksDomCpsumd(sps)
+         end do
+         end do
+
+       end if 
+
+
+      do sps=1, nTimeIntervalsSpectral
+
+         ! Integrate any actuator regions we have:
+         call integrateActuatorRegions_b(localVal(:, sps), localVald(:, sps), famList, sps)
+
+         ! Integrate any user-supplied planes as have as well.
+         call integrateUserSurfaces_b(localVal(:, sps), localVald(:, sps), famList, sps)
+
+         ! Integrate any zippers we have
+         call integrateZippers_b(localVal(:, sps), localVald(:, sps), famList, sps)
+
+         ! Integrate the normal block surfaces.
+         do nn=1, nDom
+            localVald(iksminCp,sps) = ksDomCpvaluesd(nn,sps)
+            call setPointers_b(nn, 1, sps)
+            call integrateSurfaces_b(localval(:, sps), localVald(:, sps), famList)
+         end do
+
+      end do
+   end do groupLoop
+
   end subroutine getSolution_b
 #endif
 #endif

@@ -1276,6 +1276,9 @@ contains
     logical :: absConv, relConv
     real(kind=realType) :: localValues(nLocalValues)
     real(kind=realType) :: funcValues(nCostFunction)
+    real(kind=realType), dimension(nDom) :: ksDomCpvalues
+    real(kind=realType) :: maxvalue, ksDomCp
+
     ! Determine whether or not the iterations must be written.
 
     writeIterations = .true.
@@ -1298,6 +1301,8 @@ contains
        ! Initialize the local monitoring variables to zero.
 
        monLoc = zero
+       maxvalue = 0
+       ksDomCpvalues = zero
 
        ! Loop over the blocks.
 
@@ -1312,6 +1317,8 @@ contains
           ! summing into momLocal.
           localvalues = zero
           call integrateSurfaces(localValues, fullFamList)
+         !  print *, "after integratesurfaces"
+         !  print *, localValues(iksminCp)
 
           ! Convert to coefficients for monitoring:
           fact = two/(gammaInf*MachCoef*MachCoef &
@@ -1432,14 +1439,31 @@ contains
 
              case (cgnsCavitation)
                 monLoc(mm) = monLoc(mm) + localValues(iCavitation)
-
+                
              case (cgnsAxisMoment)
                 monLoc(mm) = monLoc(mm) + localValues(iaxisMoment)
 
+             case (cgnsminCp)
+                ksDomCpvalues(nn) = localValues(iksminCp)
+                maxvalue = max(maxvalue, localValues(iksminCp))   
+               !  monLoc(mm)  = maxvalue
              end select
 
           end do nMonitoringVar
        end do domains
+
+       do mm=1, nMon
+         select case(monNames(mm))
+         case (cgnsminCp)
+            do nn =1, nDom
+               ksDomCp = ksDomCp + exp(100*(ksDomCpvalues(nn)-maxvalue))
+
+            end do
+            ksDomCp = maxvalue + 1/100*log(ksDomCp)
+         end select 
+       end do
+      !  print *, "aggregate over Dom"
+      !  print *, ksDomCp
 
        ! Add the corrections from zipper meshes from proc 0
        if (oversetPresent) then
@@ -1521,9 +1545,31 @@ contains
        ! variables. This is an all reduce since every processor needs to
        ! know the residual to make the same descisions.
 
-       if(nMonSum > 0) &
+       if(nMonSum > 0) & 
+            ! Aggreagate max(-Cp) over procs
+            call mpi_allreduce(ksDomCp, maxvalue, 1, adflow_real, &
+            mpi_max, ADflow_comm_world, ierr)
+            ! print *, "max value after collect from procs"
+            ! print*, maxvalue
+            do mm=1, nMonSum
+               select case(monNames(mm))
+                  case(cgnsminCp)   
+                   monLoc(mm)  = monLoc(mm) + exp(100*(ksDomCp-maxvalue))
+               end select
+            end do 
+
             call mpi_allreduce(monLoc, monGlob, nMonSum, adflow_real, &
             mpi_sum, ADflow_comm_world, ierr)
+
+            do mm=1, nMonSum
+               select case(monNames(mm))
+                  case(cgnsminCp)   
+                   monGlob(mm)  = maxvalue + 1/100*log(monGlob(mm)) 
+                  !  print *, "aggregate over procs"
+                  !  print*, monGlob(mm)
+               end select
+            end do 
+            
 
        ! Idem for the maximum monitoring variables.
 #ifndef USE_COMPLEX

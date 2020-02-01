@@ -270,11 +270,12 @@
 !
        character(len=maxCGNSNameLen), parameter :: cgnsBlank = "Iblank"
 !
-!       Names of the "lift" force, separation sensor and cavitation
+!       Names of the "lift" force, separation sensor and cavitation and minCp
 !
        character(len=maxCGNSNameLen), parameter :: cgnsSepSensor = "SepSensor"
        character(len=maxCGNSNameLen), parameter :: cgnsCavitation = "Cavitation"
        character(len=maxCGNSNameLen), parameter :: cgnsAxisMoment = "AxisMoment"
+       character(len=maxCGNSNameLen), parameter :: cgnsminCp = "mincp"
 !
 !       Names for the convergence history and time history.
 !

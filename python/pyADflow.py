@@ -5075,6 +5075,7 @@ class ADFLOW(AeroSolver):
             'mavgvy': self.adflow.constants.costfuncmavgvy,
             'mavgvz': self.adflow.constants.costfuncmavgvz,
             'cperror2':self.adflow.constants.costfunccperror2,
+            'mincp':self.adflow.constants.costfuncksmincp,
             }
 
         return iDV, BCDV, adflowCostFunctions
