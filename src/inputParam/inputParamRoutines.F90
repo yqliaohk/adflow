@@ -298,6 +298,9 @@ contains
        case(cgnsAxisMoment)
           sortNumber(i) = 116
 
+       case (cgnsminCp)
+          sortNumber(i) = 117
+
        case (cgnsHdiffMax)
           sortNumber(i) = 201
 
@@ -1498,7 +1501,7 @@ contains
        endif
 
        ! Check the keyword.
-
+       print *, keyword
        select case (keyword)
        case ("")
           ! Multiple occurence of "_". Just ignore it.
@@ -1605,6 +1608,10 @@ contains
        case("axismoment")
           nMon = nMon + 1; nMonSum = nMonSum + 1
           tmpNames(nMon) = cgnsAxisMoment
+
+       case("mincp")
+          nMon = nMon + 1; nMonSum = nMonSum + 1
+          tmpNames(nMon) = cgnsminCp
 
        case default
           write(errorMessage,"(3a)") "Unknown monitoring variable, ", &

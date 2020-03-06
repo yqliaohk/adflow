@@ -710,6 +710,11 @@ contains
        solNames(nn) = cgnsAxisMoment
     end if
 
+    if (surfWriteCavitation) then
+       nn = nn + 1
+       solNames(nn) = cgnsminCp
+    end if
+
     if (surfWriteGC) then
        nn = nn + 1
        solNames(nn) = cgnsGC

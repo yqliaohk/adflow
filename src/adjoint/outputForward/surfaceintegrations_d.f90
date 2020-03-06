@@ -224,6 +224,11 @@ contains
 &       + ovrnts*globalvalsd(icavitation, sps)
       funcvalues(costfunccavitation) = funcvalues(costfunccavitation) + &
 &       ovrnts*globalvals(icavitation, sps)
+      funcvaluesd(costfuncksmincp) = funcvaluesd(costfuncksmincp) + &
+&       ovrnts*globalvalsd(iksmincp, sps)
+      funcvalues(costfuncksmincp) = funcvalues(costfuncksmincp) + ovrnts&
+&       *globalvals(iksmincp, sps)
+! average over ntime might not be proper for ksmincp
       funcvaluesd(costfuncaxismoment) = funcvaluesd(costfuncaxismoment) &
 &       + ovrnts*globalvalsd(iaxismoment, sps)
       funcvalues(costfuncaxismoment) = funcvalues(costfuncaxismoment) + &
@@ -658,6 +663,9 @@ contains
 &       ovrnts*globalvals(isepsensor, sps)
       funcvalues(costfunccavitation) = funcvalues(costfunccavitation) + &
 &       ovrnts*globalvals(icavitation, sps)
+      funcvalues(costfuncksmincp) = funcvalues(costfuncksmincp) + ovrnts&
+&       *globalvals(iksmincp, sps)
+! average over ntime might not be proper for ksmincp
       funcvalues(costfuncaxismoment) = funcvalues(costfuncaxismoment) + &
 &       ovrnts*globalvals(iaxismoment, sps)
       funcvalues(costfuncsepsensoravgx) = funcvalues(&
@@ -830,7 +838,8 @@ contains
     use flowvarrefstate
     use inputcostfunctions
     use inputphysics, only : machcoef, machcoefd, pointref, pointrefd,&
-&   veldirfreestream, veldirfreestreamd, equations, momentaxis, cavitationnumber
+&   veldirfreestream, veldirfreestreamd, equations, momentaxis, &
+&   cavitationnumber
     use bcpointers_d
     implicit none
 ! input/output variables
@@ -866,10 +875,14 @@ contains
 &   mvaxisd, mpaxisd
     real(kind=realtype) :: cperror, cperror2
     real(kind=realtype) :: cperrord, cperror2d
+    real(kind=realtype) :: mincp, kscp, maxsensorcp
+    real(kind=realtype) :: mincpd, kscpd, maxsensorcpd
     intrinsic mod
     intrinsic max
     intrinsic sqrt
     intrinsic exp
+    intrinsic min
+    intrinsic log
     real(kind=realtype) :: arg1
     real(kind=realtype) :: arg1d
     real(kind=realtype) :: result1
@@ -909,10 +922,14 @@ contains
     mpaxis = zero
     mvaxis = zero
     cperror2 = zero
+    mincp = zero
+    kscp = zero
+    maxsensorcp = zero
     sepsensoravgd = 0.0_8
     rd = 0.0_8
     vd = 0.0_8
     mpaxisd = 0.0_8
+    mincpd = 0.0_8
     cperror2d = 0.0_8
     fpd = 0.0_8
     mpd = 0.0_8
@@ -1122,8 +1139,44 @@ contains
         sensor1 = sensor1*cellarea*blk
         cavitationd = cavitationd + sensor1d
         cavitation = cavitation + sensor1
+        if (mincp .gt. cp) then
+          mincpd = cpd
+          mincp = cp
+        else
+          mincp = mincp
+        end if
       end if
     end do
+! aggregate cp locally using the local mincp
+!$ad ii-loop
+    if (computecavitation) then
+      maxsensorcpd = -mincpd
+      maxsensorcp = -mincp
+      kscpd = 0.0_8
+      do ii=0,(bcdata(mm)%jnend-bcdata(mm)%jnbeg)*(bcdata(mm)%inend-&
+&         bcdata(mm)%inbeg)-1
+        i = mod(ii, bcdata(mm)%inend - bcdata(mm)%inbeg) + bcdata(mm)%&
+&         inbeg + 1
+        j = ii/(bcdata(mm)%inend-bcdata(mm)%inbeg) + bcdata(mm)%jnbeg + &
+&         1
+        plocald = pp2d(i, j)
+        plocal = pp2(i, j)
+        tmpd = -(two*gammainf*(machcoefd*machcoef+machcoef*machcoefd)/(&
+&         gammainf*machcoef*machcoef)**2)
+        tmp = two/(gammainf*machcoef*machcoef)
+        cpd = tmpd*(plocal-pinf) + tmp*(plocald-pinfd)
+        cp = tmp*(plocal-pinf)
+        sensor1d = -cpd
+        sensor1 = -cp
+        kscpd = kscpd + 100*(sensor1d-maxsensorcpd)*exp(100*(sensor1-&
+&         maxsensorcp))
+        kscp = kscp + exp(100*(sensor1-maxsensorcp))
+      end do
+      kscpd = maxsensorcpd + kscpd/(100*kscp)
+      kscp = maxsensorcp + 1/100*log(kscp)
+      localvaluesd(iksmincp) = kscpd
+      localvalues(iksmincp) = kscp
+    end if
 !
 ! integration of the viscous forces.
 ! only for viscous boundaries.
@@ -1350,10 +1403,13 @@ contains
     real(kind=realtype) :: mx, my, mz, cellarea, m0x, m0y, m0z, mvaxis, &
 &   mpaxis
     real(kind=realtype) :: cperror, cperror2
+    real(kind=realtype) :: mincp, kscp, maxsensorcp
     intrinsic mod
     intrinsic max
     intrinsic sqrt
     intrinsic exp
+    intrinsic min
+    intrinsic log
     real(kind=realtype) :: arg1
     real(kind=realtype) :: result1
     select case  (bcfaceid(mm)) 
@@ -1387,6 +1443,9 @@ contains
     mpaxis = zero
     mvaxis = zero
     cperror2 = zero
+    mincp = zero
+    kscp = zero
+    maxsensorcp = zero
 !
 !         integrate the inviscid contribution over the solid walls,
 !         either inviscid or viscous. the integration is done with
@@ -1509,8 +1568,32 @@ contains
         sensor1 = one/(one+exp(-(2*10*sensor1)))
         sensor1 = sensor1*cellarea*blk
         cavitation = cavitation + sensor1
+        if (mincp .gt. cp) then
+          mincp = cp
+        else
+          mincp = mincp
+        end if
       end if
     end do
+! aggregate cp locally using the local mincp
+!$ad ii-loop
+    if (computecavitation) then
+      maxsensorcp = -mincp
+      do ii=0,(bcdata(mm)%jnend-bcdata(mm)%jnbeg)*(bcdata(mm)%inend-&
+&         bcdata(mm)%inbeg)-1
+        i = mod(ii, bcdata(mm)%inend - bcdata(mm)%inbeg) + bcdata(mm)%&
+&         inbeg + 1
+        j = ii/(bcdata(mm)%inend-bcdata(mm)%inbeg) + bcdata(mm)%jnbeg + &
+&         1
+        plocal = pp2(i, j)
+        tmp = two/(gammainf*machcoef*machcoef)
+        cp = tmp*(plocal-pinf)
+        sensor1 = -cp
+        kscp = kscp + exp(100*(sensor1-maxsensorcp))
+      end do
+      kscp = maxsensorcp + 1/100*log(kscp)
+      localvalues(iksmincp) = kscp
+    end if
 !
 ! integration of the viscous forces.
 ! only for viscous boundaries.

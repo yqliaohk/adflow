@@ -5952,10 +5952,11 @@ end subroutine cross_prod
 
        ! Write the header for the variables to be monitored.
        do i=1, nMon
+         !  print *, monNames(i)
           ! Determine the variable name and write the
           ! corresponding text.
           select case (monNames(i))
-
+          
           case ("totalR")
              write(*,"(a)",advance="no") "        totalRes        |"
 
@@ -6051,6 +6052,9 @@ end subroutine cross_prod
 
           case (cgnsAxisMoment)
              write(*,"(a)",advance="no") "       AxisMoment       |"
+
+          case (cgnsminCp)
+             write(*,"(a)",advance="no") "         -minCp         |"
 
           end select
        enddo
