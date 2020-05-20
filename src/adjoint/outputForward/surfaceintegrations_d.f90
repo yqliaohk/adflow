@@ -830,7 +830,8 @@ contains
     use flowvarrefstate
     use inputcostfunctions
     use inputphysics, only : machcoef, machcoefd, pointref, pointrefd,&
-&   veldirfreestream, veldirfreestreamd, equations, momentaxis, cavitationnumber
+&   veldirfreestream, veldirfreestreamd, equations, momentaxis, &
+&   cavitationnumber
     use bcpointers_d
     implicit none
 ! input/output variables
@@ -1115,9 +1116,11 @@ contains
         cp = tmp*(plocal-pinf)
         sensor1d = -cpd
         sensor1 = -cp - cavitationnumber
-        sensor1d = -((-(one*2*10*sensor1d*exp(-(2*10*sensor1))))/(one+&
-&         exp(-(2*10*sensor1)))**2)
-        sensor1 = one/(one+exp(-(2*10*sensor1)))
+        arg1d = -(2*cavsensorsharpness*sensor1d)
+        arg1 = -(2*cavsensorsharpness*(sensor1-cavsensoroffset))
+        sensor1d = (one*sensor1d*(one+exp(arg1))-sensor1*one*arg1d*exp(&
+&         arg1))/(one+exp(arg1))**2
+        sensor1 = sensor1*one/(one+exp(arg1))
         sensor1d = blk*(sensor1d*cellarea+sensor1*cellaread)
         sensor1 = sensor1*cellarea*blk
         cavitationd = cavitationd + sensor1d
@@ -1506,7 +1509,8 @@ contains
         tmp = two/(gammainf*machcoef*machcoef)
         cp = tmp*(plocal-pinf)
         sensor1 = -cp - cavitationnumber
-        sensor1 = one/(one+exp(-(2*10*sensor1)))
+        arg1 = -(2*cavsensorsharpness*(sensor1-cavsensoroffset))
+        sensor1 = sensor1*one/(one+exp(arg1))
         sensor1 = sensor1*cellarea*blk
         cavitation = cavitation + sensor1
       end if

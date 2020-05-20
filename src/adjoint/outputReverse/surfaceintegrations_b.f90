@@ -1054,7 +1054,8 @@ contains
     use flowvarrefstate
     use inputcostfunctions
     use inputphysics, only : machcoef, machcoefd, pointref, pointrefd,&
-&   veldirfreestream, veldirfreestreamd, equations, momentaxis, cavitationnumber
+&   veldirfreestream, veldirfreestreamd, equations, momentaxis, &
+&   cavitationnumber
     use bcpointers_b
     implicit none
 ! input/output variables
@@ -1117,6 +1118,7 @@ contains
     real(kind=realtype) :: tempd1
     real(kind=realtype) :: tempd0
     real(kind=realtype) :: tmpd0(3)
+    real(kind=realtype) :: tempd25
     real(kind=realtype) :: tempd24
     real(kind=realtype) :: tempd23
     real(kind=realtype) :: tempd22
@@ -1270,7 +1272,8 @@ contains
         tmp = two/(gammainf*machcoef*machcoef)
         cp = tmp*(plocal-pinf)
         sensor1 = -cp - cavitationnumber
-        sensor1 = one/(one+exp(-(2*10*sensor1)))
+        sensor1 = sensor1*one/(one+exp(-(2*cavsensorsharpness*(sensor1-&
+&         cavsensoroffset))))
         sensor1 = sensor1*cellarea*blk
         cavitation = cavitation + sensor1
       end if
@@ -1377,10 +1380,10 @@ contains
         mxd = blk*mvd(1)
         myd = blk*mvd(2)
         mzd = blk*mvd(3)
-        tempd15 = blk*mvaxisd
-        m0xd = n(1)*tempd15
-        m0yd = n(2)*tempd15
-        m0zd = n(3)*tempd15
+        tempd16 = blk*mvaxisd
+        m0xd = n(1)*tempd16
+        m0yd = n(2)*tempd16
+        m0zd = n(3)*tempd16
         fzd = blk*fvd(3) - xc*myd - r(1)*m0yd + yc*mxd + r(2)*m0xd + &
 &         bcdatad(mm)%fv(i, j, 3)
         bcdatad(mm)%fv(i, j, 3) = 0.0_8
@@ -1396,67 +1399,67 @@ contains
         rd(1) = rd(1) - fz*m0yd
         rd(2) = rd(2) + fz*m0xd
         rd(3) = rd(3) - fy*m0xd
-        tempd16 = fourth*rd(3)
-        xxd(i, j, 3) = xxd(i, j, 3) + tempd16
-        xxd(i+1, j, 3) = xxd(i+1, j, 3) + tempd16
-        xxd(i, j+1, 3) = xxd(i, j+1, 3) + tempd16
-        xxd(i+1, j+1, 3) = xxd(i+1, j+1, 3) + tempd16
+        tempd17 = fourth*rd(3)
+        xxd(i, j, 3) = xxd(i, j, 3) + tempd17
+        xxd(i+1, j, 3) = xxd(i+1, j, 3) + tempd17
+        xxd(i, j+1, 3) = xxd(i, j+1, 3) + tempd17
+        xxd(i+1, j+1, 3) = xxd(i+1, j+1, 3) + tempd17
         rd(3) = 0.0_8
-        tempd17 = fourth*rd(2)
-        xxd(i, j, 2) = xxd(i, j, 2) + tempd17
-        xxd(i+1, j, 2) = xxd(i+1, j, 2) + tempd17
-        xxd(i, j+1, 2) = xxd(i, j+1, 2) + tempd17
-        xxd(i+1, j+1, 2) = xxd(i+1, j+1, 2) + tempd17
+        tempd18 = fourth*rd(2)
+        xxd(i, j, 2) = xxd(i, j, 2) + tempd18
+        xxd(i+1, j, 2) = xxd(i+1, j, 2) + tempd18
+        xxd(i, j+1, 2) = xxd(i, j+1, 2) + tempd18
+        xxd(i+1, j+1, 2) = xxd(i+1, j+1, 2) + tempd18
         rd(2) = 0.0_8
-        tempd18 = fourth*rd(1)
-        xxd(i, j, 1) = xxd(i, j, 1) + tempd18
-        xxd(i+1, j, 1) = xxd(i+1, j, 1) + tempd18
-        xxd(i, j+1, 1) = xxd(i, j+1, 1) + tempd18
-        xxd(i+1, j+1, 1) = xxd(i+1, j+1, 1) + tempd18
+        tempd19 = fourth*rd(1)
+        xxd(i, j, 1) = xxd(i, j, 1) + tempd19
+        xxd(i+1, j, 1) = xxd(i+1, j, 1) + tempd19
+        xxd(i, j+1, 1) = xxd(i, j+1, 1) + tempd19
+        xxd(i+1, j+1, 1) = xxd(i+1, j+1, 1) + tempd19
         rd(1) = 0.0_8
         xcd = fy*mzd - fz*myd
         ycd = fz*mxd - fx*mzd
         zcd = fx*myd - fy*mxd
-        tempd19 = fourth*zcd
-        xxd(i, j, 3) = xxd(i, j, 3) + tempd19
-        xxd(i+1, j, 3) = xxd(i+1, j, 3) + tempd19
-        xxd(i, j+1, 3) = xxd(i, j+1, 3) + tempd19
-        xxd(i+1, j+1, 3) = xxd(i+1, j+1, 3) + tempd19
+        tempd20 = fourth*zcd
+        xxd(i, j, 3) = xxd(i, j, 3) + tempd20
+        xxd(i+1, j, 3) = xxd(i+1, j, 3) + tempd20
+        xxd(i, j+1, 3) = xxd(i, j+1, 3) + tempd20
+        xxd(i+1, j+1, 3) = xxd(i+1, j+1, 3) + tempd20
         refpointd(3) = refpointd(3) - zcd
-        tempd20 = fourth*ycd
-        xxd(i, j, 2) = xxd(i, j, 2) + tempd20
-        xxd(i+1, j, 2) = xxd(i+1, j, 2) + tempd20
-        xxd(i, j+1, 2) = xxd(i, j+1, 2) + tempd20
-        xxd(i+1, j+1, 2) = xxd(i+1, j+1, 2) + tempd20
+        tempd21 = fourth*ycd
+        xxd(i, j, 2) = xxd(i, j, 2) + tempd21
+        xxd(i+1, j, 2) = xxd(i+1, j, 2) + tempd21
+        xxd(i, j+1, 2) = xxd(i, j+1, 2) + tempd21
+        xxd(i+1, j+1, 2) = xxd(i+1, j+1, 2) + tempd21
         refpointd(2) = refpointd(2) - ycd
-        tempd21 = fourth*xcd
-        xxd(i, j, 1) = xxd(i, j, 1) + tempd21
-        xxd(i+1, j, 1) = xxd(i+1, j, 1) + tempd21
-        xxd(i, j+1, 1) = xxd(i, j+1, 1) + tempd21
-        xxd(i+1, j+1, 1) = xxd(i+1, j+1, 1) + tempd21
+        tempd22 = fourth*xcd
+        xxd(i, j, 1) = xxd(i, j, 1) + tempd22
+        xxd(i+1, j, 1) = xxd(i+1, j, 1) + tempd22
+        xxd(i, j+1, 1) = xxd(i, j+1, 1) + tempd22
+        xxd(i+1, j+1, 1) = xxd(i+1, j+1, 1) + tempd22
         refpointd(1) = refpointd(1) - xcd
-        tempd22 = -(fact*pref*fzd)
-        ssid(i, j, 1) = ssid(i, j, 1) + tauxz*tempd22
-        ssid(i, j, 2) = ssid(i, j, 2) + tauyz*tempd22
-        tauzzd = ssi(i, j, 3)*tempd22
-        ssid(i, j, 3) = ssid(i, j, 3) + tauzz*tempd22
+        tempd23 = -(fact*pref*fzd)
+        ssid(i, j, 1) = ssid(i, j, 1) + tauxz*tempd23
+        ssid(i, j, 2) = ssid(i, j, 2) + tauyz*tempd23
+        tauzzd = ssi(i, j, 3)*tempd23
+        ssid(i, j, 3) = ssid(i, j, 3) + tauzz*tempd23
         prefd = prefd - fact*(tauxz*ssi(i, j, 1)+tauyz*ssi(i, j, 2)+&
 &         tauzz*ssi(i, j, 3))*fzd
-        tempd24 = -(fact*pref*fyd)
-        tauyzd = ssi(i, j, 3)*tempd24 + ssi(i, j, 2)*tempd22
-        ssid(i, j, 1) = ssid(i, j, 1) + tauxy*tempd24
-        tauyyd = ssi(i, j, 2)*tempd24
-        ssid(i, j, 2) = ssid(i, j, 2) + tauyy*tempd24
-        ssid(i, j, 3) = ssid(i, j, 3) + tauyz*tempd24
+        tempd25 = -(fact*pref*fyd)
+        tauyzd = ssi(i, j, 3)*tempd25 + ssi(i, j, 2)*tempd23
+        ssid(i, j, 1) = ssid(i, j, 1) + tauxy*tempd25
+        tauyyd = ssi(i, j, 2)*tempd25
+        ssid(i, j, 2) = ssid(i, j, 2) + tauyy*tempd25
+        ssid(i, j, 3) = ssid(i, j, 3) + tauyz*tempd25
         prefd = prefd - fact*(tauxy*ssi(i, j, 1)+tauyy*ssi(i, j, 2)+&
 &         tauyz*ssi(i, j, 3))*fyd
-        tempd23 = -(fact*pref*fxd)
-        tauxzd = ssi(i, j, 3)*tempd23 + ssi(i, j, 1)*tempd22
-        tauxyd = ssi(i, j, 2)*tempd23 + ssi(i, j, 1)*tempd24
-        tauxxd = ssi(i, j, 1)*tempd23
-        ssid(i, j, 1) = ssid(i, j, 1) + tauxx*tempd23
-        ssid(i, j, 2) = ssid(i, j, 2) + tauxy*tempd23
-        ssid(i, j, 3) = ssid(i, j, 3) + tauxz*tempd23
+        tempd24 = -(fact*pref*fxd)
+        tauxzd = ssi(i, j, 3)*tempd24 + ssi(i, j, 1)*tempd23
+        tauxyd = ssi(i, j, 2)*tempd24 + ssi(i, j, 1)*tempd25
+        tauxxd = ssi(i, j, 1)*tempd24
+        ssid(i, j, 1) = ssid(i, j, 1) + tauxx*tempd24
+        ssid(i, j, 2) = ssid(i, j, 2) + tauxy*tempd24
+        ssid(i, j, 3) = ssid(i, j, 3) + tauxz*tempd24
         prefd = prefd - fact*(tauxx*ssi(i, j, 1)+tauxy*ssi(i, j, 2)+&
 &         tauxz*ssi(i, j, 3))*fxd
         viscsubfaced(mm)%tau(i, j, 6) = viscsubfaced(mm)%tau(i, j, 6) + &
@@ -1574,14 +1577,17 @@ contains
         cp = tmp*(plocal-pinf)
         sensor1 = -cp - cavitationnumber
         call pushreal8(sensor1)
-        sensor1 = one/(one+exp(-(2*10*sensor1)))
+        sensor1 = sensor1*one/(one+exp(-(2*cavsensorsharpness*(sensor1-&
+&         cavsensoroffset))))
         sensor1d = cavitationd
         cellaread = blk*sensor1*sensor1d
         sensor1d = blk*cellarea*sensor1d
         call popreal8(sensor1)
-        temp6 = -(10*2*sensor1)
+        temp6 = -(2*cavsensorsharpness*(sensor1-cavsensoroffset))
         temp5 = one + exp(temp6)
-        sensor1d = exp(temp6)*one*10*2*sensor1d/temp5**2
+        tempd15 = one*sensor1d/temp5
+        sensor1d = (exp(temp6)*sensor1*cavsensorsharpness*2/temp5+1.0_8)&
+&         *tempd15
         cpd = -sensor1d
         tmpd = (plocal-pinf)*cpd
         plocald = tmp*cpd
@@ -1939,7 +1945,8 @@ contains
         tmp = two/(gammainf*machcoef*machcoef)
         cp = tmp*(plocal-pinf)
         sensor1 = -cp - cavitationnumber
-        sensor1 = one/(one+exp(-(2*10*sensor1)))
+        sensor1 = sensor1*one/(one+exp(-(2*cavsensorsharpness*(sensor1-&
+&         cavsensoroffset))))
         sensor1 = sensor1*cellarea*blk
         cavitation = cavitation + sensor1
       end if

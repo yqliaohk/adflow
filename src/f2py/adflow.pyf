@@ -1306,6 +1306,8 @@ python module libadflow
          use constants
          real(kind=realtype) sepsensoroffset
          real(kind=realtype) sepsensorsharpness
+         real(kind=realtype) cavsensoroffset
+         real(kind=realtype) cavsensorsharpness
          logical::computecavitation
        end module inputcostfunctions
 

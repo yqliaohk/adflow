@@ -4045,6 +4045,8 @@ contains
     usematrixfreedrdw = .False.
     sepSensorOffset = zero
     sepSensorSharpness = 10_realType
+    cavSensorOffset = zero
+    cavSensorSharpness = 10_realType
   end subroutine setDefaultValues
 
   subroutine initializeIsoSurfaceVariables(values, nValues)
