@@ -1118,9 +1118,9 @@ contains
         sensor1 = -cp - cavitationnumber
         arg1d = -(2*cavsensorsharpness*sensor1d)
         arg1 = -(2*cavsensorsharpness*(sensor1-cavsensoroffset))
-        sensor1d = (one*sensor1d*(one+exp(arg1))-sensor1*one*arg1d*exp(&
-&         arg1))/(one+exp(arg1))**2
-        sensor1 = sensor1*one/(one+exp(arg1))
+        sensor1d = (one*(sensor1d*sensor1+sensor1*sensor1d)*(one+exp(&
+&         arg1))-sensor1**2*one*arg1d*exp(arg1))/(one+exp(arg1))**2
+        sensor1 = sensor1*sensor1*one/(one+exp(arg1))
         sensor1d = blk*(sensor1d*cellarea+sensor1*cellaread)
         sensor1 = sensor1*cellarea*blk
         cavitationd = cavitationd + sensor1d
@@ -1510,7 +1510,7 @@ contains
         cp = tmp*(plocal-pinf)
         sensor1 = -cp - cavitationnumber
         arg1 = -(2*cavsensorsharpness*(sensor1-cavsensoroffset))
-        sensor1 = sensor1*one/(one+exp(arg1))
+        sensor1 = sensor1*sensor1*one/(one+exp(arg1))
         sensor1 = sensor1*cellarea*blk
         cavitation = cavitation + sensor1
       end if

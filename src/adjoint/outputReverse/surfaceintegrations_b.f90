@@ -1272,8 +1272,8 @@ contains
         tmp = two/(gammainf*machcoef*machcoef)
         cp = tmp*(plocal-pinf)
         sensor1 = -cp - cavitationnumber
-        sensor1 = sensor1*one/(one+exp(-(2*cavsensorsharpness*(sensor1-&
-&         cavsensoroffset))))
+        sensor1 = sensor1*sensor1*one/(one+exp(-(2*cavsensorsharpness*(&
+&         sensor1-cavsensoroffset))))
         sensor1 = sensor1*cellarea*blk
         cavitation = cavitation + sensor1
       end if
@@ -1577,8 +1577,8 @@ contains
         cp = tmp*(plocal-pinf)
         sensor1 = -cp - cavitationnumber
         call pushreal8(sensor1)
-        sensor1 = sensor1*one/(one+exp(-(2*cavsensorsharpness*(sensor1-&
-&         cavsensoroffset))))
+        sensor1 = sensor1*sensor1*one/(one+exp(-(2*cavsensorsharpness*(&
+&         sensor1-cavsensoroffset))))
         sensor1d = cavitationd
         cellaread = blk*sensor1*sensor1d
         sensor1d = blk*cellarea*sensor1d
@@ -1586,8 +1586,8 @@ contains
         temp6 = -(2*cavsensorsharpness*(sensor1-cavsensoroffset))
         temp5 = one + exp(temp6)
         tempd15 = one*sensor1d/temp5
-        sensor1d = (exp(temp6)*sensor1*cavsensorsharpness*2/temp5+1.0_8)&
-&         *tempd15
+        sensor1d = (exp(temp6)*sensor1**2*cavsensorsharpness*2/temp5+2*&
+&         sensor1)*tempd15
         cpd = -sensor1d
         tmpd = (plocal-pinf)*cpd
         plocald = tmp*cpd
@@ -1945,8 +1945,8 @@ contains
         tmp = two/(gammainf*machcoef*machcoef)
         cp = tmp*(plocal-pinf)
         sensor1 = -cp - cavitationnumber
-        sensor1 = sensor1*one/(one+exp(-(2*cavsensorsharpness*(sensor1-&
-&         cavsensoroffset))))
+        sensor1 = sensor1*sensor1*one/(one+exp(-(2*cavsensorsharpness*(&
+&         sensor1-cavsensoroffset))))
         sensor1 = sensor1*cellarea*blk
         cavitation = cavitation + sensor1
       end if
