@@ -1301,6 +1301,9 @@ contains
        case (Extrap)
           bcPrior(i) = 15
 
+       case (AntiSymm)
+          bcPrior(i) = 16
+
        case (SlidingInterface)
           bcPrior(i) = 19
 

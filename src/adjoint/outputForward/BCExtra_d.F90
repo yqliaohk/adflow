@@ -58,7 +58,7 @@ contains
     !  AntiSymmetry Boundary Condition
     ! ------------------------------------
     do nn=1, nBocos
-       if (bcType(nn) == symm) then
+       if (bcType(nn) == antisymm) then
           call setBCPointers_d(nn, .False.)
           call bcAntiSymm1stHalo_d(nn)
        end if
@@ -66,7 +66,7 @@ contains
 
     if (secondHalo) then
        do nn=1, nBocos
-          if (bcType(nn) == symm) then
+          if (bcType(nn) == antisymm) then
              call setBCPointers_d(nn, .False.)
              call bcAntiSymm2ndHalo_d(nn)
           end if
