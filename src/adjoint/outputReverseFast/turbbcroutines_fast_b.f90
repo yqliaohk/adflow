@@ -414,12 +414,15 @@ bocos:do nn=1,nbocos
 ! and an isothermal wall for the turbulent equations.
 ! set the implicit treatment of the wall boundary conditions.
         call bcturbwall(nn)
-      case (symm, antisymm, symmpolar, eulerwall) 
+      case (symm, symmpolar, eulerwall) 
 !=============================================================
 !=============================================================
 ! symmetry, polar symmetry or inviscid wall. treatment of
 ! the turbulent equations is identical.
         call bcturbsymm(nn)
+      case (antisymm) 
+! antisymm
+        call bcturbantisymm(nn)
       case (farfield) 
 !=============================================================
 ! farfield. the kind of boundary condition to be applied,
@@ -600,6 +603,58 @@ bocos:do nn=1,nbocos
       end do
     end do
   end subroutine bcturbsymm
+  subroutine bcturbantisymm(nn)
+!
+!       bcturbsymm applies the implicit treatment of the symmetry
+!       boundary condition (or inviscid wall) to subface nn. as the
+!       symmetry boundary condition is independent of the turbulence
+!       model, this routine is valid for all models. it is assumed
+!       that the pointers in blockpointers are already set to the
+!       correct block on the correct grid level.
+!
+    use constants
+    use blockpointers
+    use flowvarrefstate
+    implicit none
+!
+!      subroutine arguments.
+!
+    integer(kind=inttype), intent(in) :: nn
+!
+!      local variables.
+!
+    integer(kind=inttype) :: i, j, l
+! loop over the faces of the subfaces and set the values of bmt
+! for an implicit treatment. for a antisymmetry face this means
+! that the halo value is set to the internal value with an opposit
+! perturbation.
+    do j=bcdata(nn)%jcbeg,bcdata(nn)%jcend
+      do i=bcdata(nn)%icbeg,bcdata(nn)%icend
+        do l=nt1,nt2
+          select case  (bcfaceid(nn)) 
+          case (imin) 
+            bmti1(i, j, l, l) = -one
+            bvti1(i, j, l) = two*winf(l)
+          case (imax) 
+            bmti2(i, j, l, l) = -one
+            bvti2(i, j, l) = two*winf(l)
+          case (jmin) 
+            bmtj1(i, j, l, l) = -one
+            bvtj1(i, j, l) = two*winf(l)
+          case (jmax) 
+            bmtj2(i, j, l, l) = -one
+            bvtj2(i, j, l) = two*winf(l)
+          case (kmin) 
+            bmtk1(i, j, l, l) = -one
+            bvtk1(i, j, l) = two*winf(l)
+          case (kmax) 
+            bmtk2(i, j, l, l) = -one
+            bvtk2(i, j, l) = two*winf(l)
+          end select
+        end do
+      end do
+    end do
+  end subroutine bcturbantisymm
   subroutine turb2ndhalo(nn)
 !
 !       turb2ndhalo sets the turbulent variables in the second halo

@@ -663,6 +663,62 @@ contains
     enddo
   end subroutine bcTurbSymm
 
+  subroutine bcTurbAntiSymm(nn)
+    !
+    !       bcTurbSymm applies the implicit treatment of the symmetry
+    !       boundary condition (or inviscid wall) to subface nn. As the
+    !       symmetry boundary condition is independent of the turbulence
+    !       model, this routine is valid for all models. It is assumed
+    !       that the pointers in blockPointers are already set to the
+    !       correct block on the correct grid level.
+    !
+    use constants
+    use blockPointers
+    use flowVarRefState
+    implicit none
+    !
+    !      Subroutine arguments.
+    !
+    integer(kind=intType), intent(in) :: nn
+    !
+    !      Local variables.
+    !
+    integer(kind=intType) :: i, j, l
+
+    ! Loop over the faces of the subfaces and set the values of bmt
+    ! for an implicit treatment. For a antisymmetry face this means
+    ! that the halo value is set to the internal value with an opposit
+    ! perturbation.
+
+    do j=BCData(nn)%jcBeg, BCData(nn)%jcEnd
+       do i=BCData(nn)%icBeg, BCData(nn)%icEnd
+          do l=nt1,nt2
+             select case (BCFaceID(nn))
+             case (iMin)
+                bmti1(i,j,l,l) = -one
+                bvti1(i,j,l) = two*wInf(l)
+             case (iMax)
+                bmti2(i,j,l,l) = -one
+                bvti2(i,j,l) = two*wInf(l)
+             case (jMin)
+                bmtj1(i,j,l,l) = -one
+                bvtj1(i,j,l) = two*wInf(l)
+             case (jMax)
+                bmtj2(i,j,l,l) = -one
+                bvtj2(i,j,l) = two*wInf(l)
+             case (kMin)
+                bmtk1(i,j,l,l) = -one
+                bvtk1(i,j,l) = two*wInf(l)
+             case (kMax)
+                bmtk2(i,j,l,l) = -one
+                bvtk2(i,j,l) = two*wInf(l)
+             end select
+             
+          enddo
+       enddo
+    enddo
+  end subroutine bcTurbAntiSymm
+
   subroutine bcTurbTreatment
     !
     !       bcTurbTreatment sets the arrays bmti1, bvti1, etc, such that
@@ -766,12 +822,18 @@ contains
 #endif
           !=============================================================
 
-       case (Symm, AntiSymm, SymmPolar, EulerWall)
+       case (Symm, SymmPolar, EulerWall)
 
           ! Symmetry, polar symmetry or inviscid wall. Treatment of
           ! the turbulent equations is identical.
 
           call bcTurbSymm(nn)
+
+       case (AntiSymm)
+
+          ! Antisymm
+
+          call bcTurbAntiSymm(nn)
 
           !=============================================================
 

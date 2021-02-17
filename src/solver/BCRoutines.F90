@@ -368,7 +368,8 @@ end subroutine applyAllBC
 
     use constants
     use blockPointers, only : BCdata
-    use flowVarRefState, only : viscous, eddyModel, pinf, wInf
+    use inputPhysics, only: eddyVisInfRatio
+    use flowVarRefState, only : viscous, eddyModel, pInfCorr, wInf, muInf
     use BCPointers, only : gamma1, gamma2, ww1, ww2, pp1, pp2, rlv1, rlv2, &
          iStart, jStart, iSize, jSize, rev1, rev2
     implicit none
@@ -419,9 +420,9 @@ end subroutine applyAllBC
        ! laminar and eddy viscosity in the halo.
 
        gamma1(i,j) = gamma2(i,j)
-       pp1(i,j)    = pInf - (pp2(i,j) - pInf)
-       if( viscous )   rlv1(i,j) = - rlv2(i,j)
-       if( eddyModel ) rev1(i,j) = - rev2(i,j)
+       pp1(i,j)    = pInfCorr - (pp2(i,j) - pInfCorr)
+       if( viscous )   rlv1(i,j) = muInf - (rlv2(i,j) - muInf)
+       if( eddyModel ) rev1(i,j) = eddyVisInfRatio*muInf - (rev2(i,j) - eddyVisInfRatio*muInf)
     enddo
   end subroutine bcAntiSymm1stHalo
 
@@ -432,7 +433,8 @@ end subroutine applyAllBC
     !  AD slightly easier.
     use constants
     use blockPointers, only : BCdata
-    use flowVarRefState, only : viscous, eddyModel, pinf, wInf
+    use inputPhysics, only: eddyVisInfRatio
+    use flowVarRefState, only : viscous, eddyModel, pInfCorr, wInf, muInf
     use BCPointers, only : gamma0, gamma3, ww0, ww3, pp0, pp3, rlv0, rlv3, &
          rev0, rev3, iStart, jStart, iSize, jSize
     implicit none
@@ -478,9 +480,9 @@ end subroutine applyAllBC
        ! laminar and eddy viscosity in the halo.
 
        gamma0(i,j) = gamma3(i,j)
-       pp0(i,j)    = pInf - (pp3(i,j) - pInf)
-       if( viscous )   rlv0(i,j) = - rlv3(i,j)
-       if( eddyModel ) rev0(i,j) = - rev3(i,j)
+       pp0(i,j)    = pInfCorr - (pp3(i,j) - pInfCorr)
+       if( viscous )   rlv0(i,j) = muInf - (rlv3(i,j) - muInf)
+       if( eddyModel ) rev0(i,j) = eddyVisInfRatio*muInf - (rev3(i,j) - eddyVisInfRatio*muInf)
     enddo
 
   end subroutine bcAntiSymm2ndHalo

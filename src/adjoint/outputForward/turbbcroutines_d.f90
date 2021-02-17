@@ -722,12 +722,15 @@ bocos:do nn=1,nbocos
 ! and an isothermal wall for the turbulent equations.
 ! set the implicit treatment of the wall boundary conditions.
         call bcturbwall_d(nn)
-      case (symm, antisymm, symmpolar, eulerwall) 
+      case (symm, symmpolar, eulerwall) 
 !=============================================================
 !=============================================================
 ! symmetry, polar symmetry or inviscid wall. treatment of
 ! the turbulent equations is identical.
         call bcturbsymm(nn)
+      case (antisymm) 
+! antisymm
+        call bcturbantisymm_d(nn)
       case (farfield) 
 !=============================================================
 ! farfield. the kind of boundary condition to be applied,
@@ -889,6 +892,71 @@ bocos:do nn=1,nbocos
       end do
     end do
   end subroutine bcturbinterface_d
+!  differentiation of bcturbantisymm in forward (tangent) mode (with options i4 dr8 r8):
+!   variations   of useful results: *bvtj1 *bvtj2 *bvtk1 *bvtk2
+!                *bvti1 *bvti2
+!   with respect to varying inputs: winf *bvtj1 *bvtj2 *bvtk1 *bvtk2
+!                *bvti1 *bvti2
+!   plus diff mem management of: bvtj1:in bvtj2:in bvtk1:in bvtk2:in
+!                bvti1:in bvti2:in
+  subroutine bcturbantisymm_d(nn)
+!
+!       bcturbsymm applies the implicit treatment of the symmetry
+!       boundary condition (or inviscid wall) to subface nn. as the
+!       symmetry boundary condition is independent of the turbulence
+!       model, this routine is valid for all models. it is assumed
+!       that the pointers in blockpointers are already set to the
+!       correct block on the correct grid level.
+!
+    use constants
+    use blockpointers
+    use flowvarrefstate
+    implicit none
+!
+!      subroutine arguments.
+!
+    integer(kind=inttype), intent(in) :: nn
+!
+!      local variables.
+!
+    integer(kind=inttype) :: i, j, l
+! loop over the faces of the subfaces and set the values of bmt
+! for an implicit treatment. for a antisymmetry face this means
+! that the halo value is set to the internal value with an opposit
+! perturbation.
+    do j=bcdata(nn)%jcbeg,bcdata(nn)%jcend
+      do i=bcdata(nn)%icbeg,bcdata(nn)%icend
+        do l=nt1,nt2
+          select case  (bcfaceid(nn)) 
+          case (imin) 
+            bmti1(i, j, l, l) = -one
+            bvti1d(i, j, l) = two*winfd(l)
+            bvti1(i, j, l) = two*winf(l)
+          case (imax) 
+            bmti2(i, j, l, l) = -one
+            bvti2d(i, j, l) = two*winfd(l)
+            bvti2(i, j, l) = two*winf(l)
+          case (jmin) 
+            bmtj1(i, j, l, l) = -one
+            bvtj1d(i, j, l) = two*winfd(l)
+            bvtj1(i, j, l) = two*winf(l)
+          case (jmax) 
+            bmtj2(i, j, l, l) = -one
+            bvtj2d(i, j, l) = two*winfd(l)
+            bvtj2(i, j, l) = two*winf(l)
+          case (kmin) 
+            bmtk1(i, j, l, l) = -one
+            bvtk1d(i, j, l) = two*winfd(l)
+            bvtk1(i, j, l) = two*winf(l)
+          case (kmax) 
+            bmtk2(i, j, l, l) = -one
+            bvtk2d(i, j, l) = two*winfd(l)
+            bvtk2(i, j, l) = two*winf(l)
+          end select
+        end do
+      end do
+    end do
+  end subroutine bcturbantisymm_d
   subroutine bcturbtreatment()
 !
 !       bcturbtreatment sets the arrays bmti1, bvti1, etc, such that
@@ -958,12 +1026,15 @@ bocos:do nn=1,nbocos
 ! and an isothermal wall for the turbulent equations.
 ! set the implicit treatment of the wall boundary conditions.
         call bcturbwall(nn)
-      case (symm, antisymm, symmpolar, eulerwall) 
+      case (symm, symmpolar, eulerwall) 
 !=============================================================
 !=============================================================
 ! symmetry, polar symmetry or inviscid wall. treatment of
 ! the turbulent equations is identical.
         call bcturbsymm(nn)
+      case (antisymm) 
+! antisymm
+        call bcturbantisymm(nn)
       case (farfield) 
 !=============================================================
 ! farfield. the kind of boundary condition to be applied,
@@ -1144,6 +1215,58 @@ bocos:do nn=1,nbocos
       end do
     end do
   end subroutine bcturbsymm
+  subroutine bcturbantisymm(nn)
+!
+!       bcturbsymm applies the implicit treatment of the symmetry
+!       boundary condition (or inviscid wall) to subface nn. as the
+!       symmetry boundary condition is independent of the turbulence
+!       model, this routine is valid for all models. it is assumed
+!       that the pointers in blockpointers are already set to the
+!       correct block on the correct grid level.
+!
+    use constants
+    use blockpointers
+    use flowvarrefstate
+    implicit none
+!
+!      subroutine arguments.
+!
+    integer(kind=inttype), intent(in) :: nn
+!
+!      local variables.
+!
+    integer(kind=inttype) :: i, j, l
+! loop over the faces of the subfaces and set the values of bmt
+! for an implicit treatment. for a antisymmetry face this means
+! that the halo value is set to the internal value with an opposit
+! perturbation.
+    do j=bcdata(nn)%jcbeg,bcdata(nn)%jcend
+      do i=bcdata(nn)%icbeg,bcdata(nn)%icend
+        do l=nt1,nt2
+          select case  (bcfaceid(nn)) 
+          case (imin) 
+            bmti1(i, j, l, l) = -one
+            bvti1(i, j, l) = two*winf(l)
+          case (imax) 
+            bmti2(i, j, l, l) = -one
+            bvti2(i, j, l) = two*winf(l)
+          case (jmin) 
+            bmtj1(i, j, l, l) = -one
+            bvtj1(i, j, l) = two*winf(l)
+          case (jmax) 
+            bmtj2(i, j, l, l) = -one
+            bvtj2(i, j, l) = two*winf(l)
+          case (kmin) 
+            bmtk1(i, j, l, l) = -one
+            bvtk1(i, j, l) = two*winf(l)
+          case (kmax) 
+            bmtk2(i, j, l, l) = -one
+            bvtk2(i, j, l) = two*winf(l)
+          end select
+        end do
+      end do
+    end do
+  end subroutine bcturbantisymm
 !  differentiation of bcturbwall in forward (tangent) mode (with options i4 dr8 r8):
 !   variations   of useful results: *bvtj1 *bvtj2 *bvtk1 *bvtk2
 !                *bvti1 *bvti2

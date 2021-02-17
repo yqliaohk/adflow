@@ -401,11 +401,11 @@ contains
   end subroutine bcsymm2ndhalo
 !  differentiation of bcantisymm1sthalo in forward (tangent) mode (with options i4 dr8 r8):
 !   variations   of useful results: *rev1 *pp1 *rlv1 *ww1
-!   with respect to varying inputs: pinf winf *rev1 *rev2 *pp1
-!                *pp2 *rlv1 *rlv2 *ww1 *ww2 *(*bcdata.norm)
-!   rw status of diff variables: pinf:in winf:in *rev1:in-out *rev2:in
-!                *pp1:in-out *pp2:in *rlv1:in-out *rlv2:in *ww1:in-out
-!                *ww2:in *(*bcdata.norm):in
+!   with respect to varying inputs: winf muinf pinfcorr *rev1 *rev2
+!                *pp1 *pp2 *rlv1 *rlv2 *ww1 *ww2 *(*bcdata.norm)
+!   rw status of diff variables: winf:in muinf:in pinfcorr:in *rev1:in-out
+!                *rev2:in *pp1:in-out *pp2:in *rlv1:in-out *rlv2:in
+!                *ww1:in-out *ww2:in *(*bcdata.norm):in
 !   plus diff mem management of: rev1:in rev2:in pp1:in pp2:in
 !                rlv1:in rlv2:in ww1:in ww2:in bcdata:in *bcdata.norm:in
   subroutine bcantisymm1sthalo_d(nn)
@@ -421,8 +421,9 @@ contains
 !  planes, i.e. a 2d problem.
     use constants
     use blockpointers, only : bcdata, bcdatad
-    use flowvarrefstate, only : viscous, eddymodel, pinf, pinfd, winf,&
-&   winfd
+    use inputphysics, only : eddyvisinfratio
+    use flowvarrefstate, only : viscous, eddymodel, pinfcorr, &
+&   pinfcorrd, winf, winfd, muinf, muinfd
     use bcpointers_d, only : gamma1, gamma2, ww1, ww1d, ww2, ww2d, pp1, &
 &   pp1d, pp2, pp2d, rlv1, rlv1d, rlv2, rlv2d, istart, jstart, isize, &
 &   jsize, rev1, rev1d, rev2, rev2d
@@ -484,15 +485,16 @@ contains
 ! set the pressure and gamma and possibly the
 ! laminar and eddy viscosity in the halo.
       gamma1(i, j) = gamma2(i, j)
-      pp1d(i, j) = 2*pinfd - pp2d(i, j)
-      pp1(i, j) = pinf - (pp2(i, j)-pinf)
+      pp1d(i, j) = 2*pinfcorrd - pp2d(i, j)
+      pp1(i, j) = pinfcorr - (pp2(i, j)-pinfcorr)
       if (viscous) then
-        rlv1d(i, j) = -rlv2d(i, j)
-        rlv1(i, j) = -rlv2(i, j)
+        rlv1d(i, j) = 2*muinfd - rlv2d(i, j)
+        rlv1(i, j) = muinf - (rlv2(i, j)-muinf)
       end if
       if (eddymodel) then
-        rev1d(i, j) = -rev2d(i, j)
-        rev1(i, j) = -rev2(i, j)
+        rev1d(i, j) = 2*(eddyvisinfratio*muinfd) - rev2d(i, j)
+        rev1(i, j) = eddyvisinfratio*muinf - (rev2(i, j)-eddyvisinfratio&
+&         *muinf)
       end if
     end do
   end subroutine bcantisymm1sthalo_d
@@ -509,7 +511,9 @@ contains
 !  planes, i.e. a 2d problem.
     use constants
     use blockpointers, only : bcdata
-    use flowvarrefstate, only : viscous, eddymodel, pinf, winf
+    use inputphysics, only : eddyvisinfratio
+    use flowvarrefstate, only : viscous, eddymodel, pinfcorr, winf, &
+&   muinf
     use bcpointers_d, only : gamma1, gamma2, ww1, ww2, pp1, pp2, rlv1, &
 &   rlv2, istart, jstart, isize, jsize, rev1, rev2
     implicit none
@@ -547,18 +551,19 @@ contains
 ! set the pressure and gamma and possibly the
 ! laminar and eddy viscosity in the halo.
       gamma1(i, j) = gamma2(i, j)
-      pp1(i, j) = pinf - (pp2(i, j)-pinf)
-      if (viscous) rlv1(i, j) = -rlv2(i, j)
-      if (eddymodel) rev1(i, j) = -rev2(i, j)
+      pp1(i, j) = pinfcorr - (pp2(i, j)-pinfcorr)
+      if (viscous) rlv1(i, j) = muinf - (rlv2(i, j)-muinf)
+      if (eddymodel) rev1(i, j) = eddyvisinfratio*muinf - (rev2(i, j)-&
+&         eddyvisinfratio*muinf)
     end do
   end subroutine bcantisymm1sthalo
 !  differentiation of bcantisymm2ndhalo in forward (tangent) mode (with options i4 dr8 r8):
 !   variations   of useful results: *rev0 *pp0 *rlv0 *ww0
-!   with respect to varying inputs: pinf winf *rev0 *rev3 *pp0
-!                *pp3 *rlv0 *rlv3 *ww0 *ww3 *(*bcdata.norm)
-!   rw status of diff variables: pinf:in winf:in *rev0:in-out *rev3:in
-!                *pp0:in-out *pp3:in *rlv0:in-out *rlv3:in *ww0:in-out
-!                *ww3:in *(*bcdata.norm):in
+!   with respect to varying inputs: winf muinf pinfcorr *rev0 *rev3
+!                *pp0 *pp3 *rlv0 *rlv3 *ww0 *ww3 *(*bcdata.norm)
+!   rw status of diff variables: winf:in muinf:in pinfcorr:in *rev0:in-out
+!                *rev3:in *pp0:in-out *pp3:in *rlv0:in-out *rlv3:in
+!                *ww0:in-out *ww3:in *(*bcdata.norm):in
 !   plus diff mem management of: rev0:in rev3:in pp0:in pp3:in
 !                rlv0:in rlv3:in ww0:in ww3:in bcdata:in *bcdata.norm:in
   subroutine bcantisymm2ndhalo_d(nn)
@@ -567,8 +572,9 @@ contains
 !  ad slightly easier.
     use constants
     use blockpointers, only : bcdata, bcdatad
-    use flowvarrefstate, only : viscous, eddymodel, pinf, pinfd, winf,&
-&   winfd
+    use inputphysics, only : eddyvisinfratio
+    use flowvarrefstate, only : viscous, eddymodel, pinfcorr, &
+&   pinfcorrd, winf, winfd, muinf, muinfd
     use bcpointers_d, only : gamma0, gamma3, ww0, ww0d, ww3, ww3d, pp0, &
 &   pp0d, pp3, pp3d, rlv0, rlv0d, rlv3, rlv3d, rev0, rev0d, rev3, rev3d,&
 &   istart, jstart, isize, jsize
@@ -627,15 +633,16 @@ contains
 ! set the pressure and gamma and possibly the
 ! laminar and eddy viscosity in the halo.
       gamma0(i, j) = gamma3(i, j)
-      pp0d(i, j) = 2*pinfd - pp3d(i, j)
-      pp0(i, j) = pinf - (pp3(i, j)-pinf)
+      pp0d(i, j) = 2*pinfcorrd - pp3d(i, j)
+      pp0(i, j) = pinfcorr - (pp3(i, j)-pinfcorr)
       if (viscous) then
-        rlv0d(i, j) = -rlv3d(i, j)
-        rlv0(i, j) = -rlv3(i, j)
+        rlv0d(i, j) = 2*muinfd - rlv3d(i, j)
+        rlv0(i, j) = muinf - (rlv3(i, j)-muinf)
       end if
       if (eddymodel) then
-        rev0d(i, j) = -rev3d(i, j)
-        rev0(i, j) = -rev3(i, j)
+        rev0d(i, j) = 2*(eddyvisinfratio*muinfd) - rev3d(i, j)
+        rev0(i, j) = eddyvisinfratio*muinf - (rev3(i, j)-eddyvisinfratio&
+&         *muinf)
       end if
     end do
   end subroutine bcantisymm2ndhalo_d
@@ -645,7 +652,9 @@ contains
 !  ad slightly easier.
     use constants
     use blockpointers, only : bcdata
-    use flowvarrefstate, only : viscous, eddymodel, pinf, winf
+    use inputphysics, only : eddyvisinfratio
+    use flowvarrefstate, only : viscous, eddymodel, pinfcorr, winf, &
+&   muinf
     use bcpointers_d, only : gamma0, gamma3, ww0, ww3, pp0, pp3, rlv0, &
 &   rlv3, rev0, rev3, istart, jstart, isize, jsize
     implicit none
@@ -680,9 +689,10 @@ contains
 ! set the pressure and gamma and possibly the
 ! laminar and eddy viscosity in the halo.
       gamma0(i, j) = gamma3(i, j)
-      pp0(i, j) = pinf - (pp3(i, j)-pinf)
-      if (viscous) rlv0(i, j) = -rlv3(i, j)
-      if (eddymodel) rev0(i, j) = -rev3(i, j)
+      pp0(i, j) = pinfcorr - (pp3(i, j)-pinfcorr)
+      if (viscous) rlv0(i, j) = muinf - (rlv3(i, j)-muinf)
+      if (eddymodel) rev0(i, j) = eddyvisinfratio*muinf - (rev3(i, j)-&
+&         eddyvisinfratio*muinf)
     end do
   end subroutine bcantisymm2ndhalo
 !  differentiation of bcsymmpolar1sthalo in forward (tangent) mode (with options i4 dr8 r8):

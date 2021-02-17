@@ -263,7 +263,9 @@ contains
 !  planes, i.e. a 2d problem.
     use constants
     use blockpointers, only : bcdata
-    use flowvarrefstate, only : viscous, eddymodel, pinf, winf
+    use inputphysics, only : eddyvisinfratio
+    use flowvarrefstate, only : viscous, eddymodel, pinfcorr, winf, &
+&   muinf
     use bcpointers_fast_b, only : gamma1, gamma2, ww1, ww2, pp1, pp2, rlv1, &
 &   rlv2, istart, jstart, isize, jsize, rev1, rev2
     implicit none
@@ -301,9 +303,10 @@ contains
 ! set the pressure and gamma and possibly the
 ! laminar and eddy viscosity in the halo.
       gamma1(i, j) = gamma2(i, j)
-      pp1(i, j) = pinf - (pp2(i, j)-pinf)
-      if (viscous) rlv1(i, j) = -rlv2(i, j)
-      if (eddymodel) rev1(i, j) = -rev2(i, j)
+      pp1(i, j) = pinfcorr - (pp2(i, j)-pinfcorr)
+      if (viscous) rlv1(i, j) = muinf - (rlv2(i, j)-muinf)
+      if (eddymodel) rev1(i, j) = eddyvisinfratio*muinf - (rev2(i, j)-&
+&         eddyvisinfratio*muinf)
     end do
   end subroutine bcantisymm1sthalo
   subroutine bcantisymm2ndhalo(nn)
@@ -312,7 +315,9 @@ contains
 !  ad slightly easier.
     use constants
     use blockpointers, only : bcdata
-    use flowvarrefstate, only : viscous, eddymodel, pinf, winf
+    use inputphysics, only : eddyvisinfratio
+    use flowvarrefstate, only : viscous, eddymodel, pinfcorr, winf, &
+&   muinf
     use bcpointers_fast_b, only : gamma0, gamma3, ww0, ww3, pp0, pp3, rlv0, &
 &   rlv3, rev0, rev3, istart, jstart, isize, jsize
     implicit none
@@ -347,9 +352,10 @@ contains
 ! set the pressure and gamma and possibly the
 ! laminar and eddy viscosity in the halo.
       gamma0(i, j) = gamma3(i, j)
-      pp0(i, j) = pinf - (pp3(i, j)-pinf)
-      if (viscous) rlv0(i, j) = -rlv3(i, j)
-      if (eddymodel) rev0(i, j) = -rev3(i, j)
+      pp0(i, j) = pinfcorr - (pp3(i, j)-pinfcorr)
+      if (viscous) rlv0(i, j) = muinf - (rlv3(i, j)-muinf)
+      if (eddymodel) rev0(i, j) = eddyvisinfratio*muinf - (rev3(i, j)-&
+&         eddyvisinfratio*muinf)
     end do
   end subroutine bcantisymm2ndhalo
   subroutine bcsymmpolar1sthalo(nn)
