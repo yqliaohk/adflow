@@ -410,19 +410,16 @@ end subroutine applyAllBC
        ww1(i,j,ivy) = - dww2(ivy) + vn*BCData(nn)%norm(i,j,2)
        ww1(i,j,ivz) = - dww2(ivz) + vn*BCData(nn)%norm(i,j,3)
 
-       ww1(i,j,irho) = - dww2(irho) + wInf(irho)
        ww1(i,j,ivx) = wInf(ivx) + ww1(i,j,ivx)
        ww1(i,j,ivy) = wInf(ivy) + ww1(i,j,ivy)
        ww1(i,j,ivz) = wInf(ivz) + ww1(i,j,ivz)
-       ww1(i,j,irhoE) = - dww2(irhoE) + wInf(irhoE)
 
        ! Set the pressure and gamma and possibly the
        ! laminar and eddy viscosity in the halo.
 
-       gamma1(i,j) = gamma2(i,j)
        pp1(i,j)    = pInfCorr - (pp2(i,j) - pInfCorr)
-       if( viscous )   rlv1(i,j) = muInf - (rlv2(i,j) - muInf)
-       if( eddyModel ) rev1(i,j) = eddyVisInfRatio*muInf - (rev2(i,j) - eddyVisInfRatio*muInf)
+       if( viscous )   rlv1(i,j) = - rlv2(i,j)
+       if( eddyModel ) rev1(i,j) = - rev2(i,j) 
     enddo
   end subroutine bcAntiSymm1stHalo
 
@@ -470,19 +467,16 @@ end subroutine applyAllBC
        ww0(i,j,ivy) = - dww3(ivy) + vn*BCData(nn)%norm(i,j,2)
        ww0(i,j,ivz) = - dww3(ivz) + vn*BCData(nn)%norm(i,j,3)
 
-       ww0(i,j,irho) =  - dww3(irho) + wInf(irho) 
        ww0(i,j,ivx) = wInf(ivx) + ww0(i,j,ivx)
        ww0(i,j,ivy) = wInf(ivy) + ww0(i,j,ivy)
        ww0(i,j,ivz) = wInf(ivz) + ww0(i,j,ivz)
-       ww0(i,j,irhoE) = - dww3(irhoE) + wInf(irhoE)
 
        ! Set the pressure and gamma and possibly the
        ! laminar and eddy viscosity in the halo.
 
-       gamma0(i,j) = gamma3(i,j)
        pp0(i,j)    = pInfCorr - (pp3(i,j) - pInfCorr)
-       if( viscous )   rlv0(i,j) = muInf - (rlv3(i,j) - muInf)
-       if( eddyModel ) rev0(i,j) = eddyVisInfRatio*muInf - (rev3(i,j) - eddyVisInfRatio*muInf)
+       if( viscous )   rlv0(i,j) = - rlv3(i,j)
+       if( eddyModel ) rev0(i,j) = - rev3(i,j) 
     enddo
 
   end subroutine bcAntiSymm2ndHalo

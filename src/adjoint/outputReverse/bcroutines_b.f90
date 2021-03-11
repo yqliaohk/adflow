@@ -434,14 +434,13 @@ contains
     end do
   end subroutine bcsymm2ndhalo
 !  differentiation of bcantisymm1sthalo in reverse (adjoint) mode (with options i4 dr8 r8 noisize):
-!   gradient     of useful results: winf muinf pinfcorr *rev1 *rev2
-!                *pp1 *pp2 *rlv1 *rlv2 *ww1 *ww2 *(*bcdata.norm)
-!   with respect to varying inputs: winf muinf pinfcorr *rev1 *rev2
-!                *pp1 *pp2 *rlv1 *rlv2 *ww1 *ww2 *(*bcdata.norm)
-!   rw status of diff variables: winf:incr muinf:incr pinfcorr:incr
-!                *rev1:in-out *rev2:incr *pp1:in-out *pp2:incr
-!                *rlv1:in-out *rlv2:incr *ww1:in-out *ww2:incr
-!                *(*bcdata.norm):incr
+!   gradient     of useful results: winf pinfcorr *rev1 *rev2 *pp1
+!                *pp2 *rlv1 *rlv2 *ww1 *ww2 *(*bcdata.norm)
+!   with respect to varying inputs: winf pinfcorr *rev1 *rev2 *pp1
+!                *pp2 *rlv1 *rlv2 *ww1 *ww2 *(*bcdata.norm)
+!   rw status of diff variables: winf:incr pinfcorr:incr *rev1:in-out
+!                *rev2:incr *pp1:in-out *pp2:incr *rlv1:in-out
+!                *rlv2:incr *ww1:in-out *ww2:incr *(*bcdata.norm):incr
 !   plus diff mem management of: rev1:in rev2:in pp1:in pp2:in
 !                rlv1:in rlv2:in ww1:in ww2:in bcdata:in *bcdata.norm:in
   subroutine bcantisymm1sthalo_b(nn)
@@ -498,28 +497,20 @@ contains
         call pushcontrol1b(1)
       end if
       if (eddymodel) then
-        muinfd = muinfd + 2*eddyvisinfratio*rev1d(i, j)
         rev2d(i, j) = rev2d(i, j) - rev1d(i, j)
         rev1d(i, j) = 0.0_8
       end if
       call popcontrol1b(branch)
       if (branch .eq. 0) then
-        muinfd = muinfd + 2*rlv1d(i, j)
         rlv2d(i, j) = rlv2d(i, j) - rlv1d(i, j)
         rlv1d(i, j) = 0.0_8
       end if
       pinfcorrd = pinfcorrd + 2*pp1d(i, j)
       pp2d(i, j) = pp2d(i, j) - pp1d(i, j)
       pp1d(i, j) = 0.0_8
-      winfd(irhoe) = winfd(irhoe) + ww1d(i, j, irhoe)
-      dww2d(irhoe) = dww2d(irhoe) - ww1d(i, j, irhoe)
-      ww1d(i, j, irhoe) = 0.0_8
       winfd(ivz) = winfd(ivz) + ww1d(i, j, ivz)
       winfd(ivy) = winfd(ivy) + ww1d(i, j, ivy)
       winfd(ivx) = winfd(ivx) + ww1d(i, j, ivx)
-      winfd(irho) = winfd(irho) + ww1d(i, j, irho)
-      dww2d(irho) = dww2d(irho) - ww1d(i, j, irho)
-      ww1d(i, j, irho) = 0.0_8
       vnd = bcdata(nn)%norm(i, j, 3)*ww1d(i, j, ivz)
       bcdatad(nn)%norm(i, j, 3) = bcdatad(nn)%norm(i, j, 3) + vn*ww1d(i&
 &       , j, ivz)
@@ -607,29 +598,24 @@ contains
       ww1(i, j, ivx) = -dww2(ivx) + vn*bcdata(nn)%norm(i, j, 1)
       ww1(i, j, ivy) = -dww2(ivy) + vn*bcdata(nn)%norm(i, j, 2)
       ww1(i, j, ivz) = -dww2(ivz) + vn*bcdata(nn)%norm(i, j, 3)
-      ww1(i, j, irho) = -dww2(irho) + winf(irho)
       ww1(i, j, ivx) = winf(ivx) + ww1(i, j, ivx)
       ww1(i, j, ivy) = winf(ivy) + ww1(i, j, ivy)
       ww1(i, j, ivz) = winf(ivz) + ww1(i, j, ivz)
-      ww1(i, j, irhoe) = -dww2(irhoe) + winf(irhoe)
 ! set the pressure and gamma and possibly the
 ! laminar and eddy viscosity in the halo.
-      gamma1(i, j) = gamma2(i, j)
       pp1(i, j) = pinfcorr - (pp2(i, j)-pinfcorr)
-      if (viscous) rlv1(i, j) = muinf - (rlv2(i, j)-muinf)
-      if (eddymodel) rev1(i, j) = eddyvisinfratio*muinf - (rev2(i, j)-&
-&         eddyvisinfratio*muinf)
+      if (viscous) rlv1(i, j) = -rlv2(i, j)
+      if (eddymodel) rev1(i, j) = -rev2(i, j)
     end do
   end subroutine bcantisymm1sthalo
 !  differentiation of bcantisymm2ndhalo in reverse (adjoint) mode (with options i4 dr8 r8 noisize):
-!   gradient     of useful results: winf muinf pinfcorr *rev0 *rev3
-!                *pp0 *pp3 *rlv0 *rlv3 *ww0 *ww3 *(*bcdata.norm)
-!   with respect to varying inputs: winf muinf pinfcorr *rev0 *rev3
-!                *pp0 *pp3 *rlv0 *rlv3 *ww0 *ww3 *(*bcdata.norm)
-!   rw status of diff variables: winf:incr muinf:incr pinfcorr:incr
-!                *rev0:in-out *rev3:incr *pp0:in-out *pp3:incr
-!                *rlv0:in-out *rlv3:incr *ww0:in-out *ww3:incr
-!                *(*bcdata.norm):incr
+!   gradient     of useful results: winf pinfcorr *rev0 *rev3 *pp0
+!                *pp3 *rlv0 *rlv3 *ww0 *ww3 *(*bcdata.norm)
+!   with respect to varying inputs: winf pinfcorr *rev0 *rev3 *pp0
+!                *pp3 *rlv0 *rlv3 *ww0 *ww3 *(*bcdata.norm)
+!   rw status of diff variables: winf:incr pinfcorr:incr *rev0:in-out
+!                *rev3:incr *pp0:in-out *pp3:incr *rlv0:in-out
+!                *rlv3:incr *ww0:in-out *ww3:incr *(*bcdata.norm):incr
 !   plus diff mem management of: rev0:in rev3:in pp0:in pp3:in
 !                rlv0:in rlv3:in ww0:in ww3:in bcdata:in *bcdata.norm:in
   subroutine bcantisymm2ndhalo_b(nn)
@@ -676,28 +662,20 @@ contains
         call pushcontrol1b(1)
       end if
       if (eddymodel) then
-        muinfd = muinfd + 2*eddyvisinfratio*rev0d(i, j)
         rev3d(i, j) = rev3d(i, j) - rev0d(i, j)
         rev0d(i, j) = 0.0_8
       end if
       call popcontrol1b(branch)
       if (branch .eq. 0) then
-        muinfd = muinfd + 2*rlv0d(i, j)
         rlv3d(i, j) = rlv3d(i, j) - rlv0d(i, j)
         rlv0d(i, j) = 0.0_8
       end if
       pinfcorrd = pinfcorrd + 2*pp0d(i, j)
       pp3d(i, j) = pp3d(i, j) - pp0d(i, j)
       pp0d(i, j) = 0.0_8
-      winfd(irhoe) = winfd(irhoe) + ww0d(i, j, irhoe)
-      dww3d(irhoe) = dww3d(irhoe) - ww0d(i, j, irhoe)
-      ww0d(i, j, irhoe) = 0.0_8
       winfd(ivz) = winfd(ivz) + ww0d(i, j, ivz)
       winfd(ivy) = winfd(ivy) + ww0d(i, j, ivy)
       winfd(ivx) = winfd(ivx) + ww0d(i, j, ivx)
-      winfd(irho) = winfd(irho) + ww0d(i, j, irho)
-      dww3d(irho) = dww3d(irho) - ww0d(i, j, irho)
-      ww0d(i, j, irho) = 0.0_8
       vnd = bcdata(nn)%norm(i, j, 3)*ww0d(i, j, ivz)
       bcdatad(nn)%norm(i, j, 3) = bcdatad(nn)%norm(i, j, 3) + vn*ww0d(i&
 &       , j, ivz)
@@ -775,18 +753,14 @@ contains
       ww0(i, j, ivx) = -dww3(ivx) + vn*bcdata(nn)%norm(i, j, 1)
       ww0(i, j, ivy) = -dww3(ivy) + vn*bcdata(nn)%norm(i, j, 2)
       ww0(i, j, ivz) = -dww3(ivz) + vn*bcdata(nn)%norm(i, j, 3)
-      ww0(i, j, irho) = -dww3(irho) + winf(irho)
       ww0(i, j, ivx) = winf(ivx) + ww0(i, j, ivx)
       ww0(i, j, ivy) = winf(ivy) + ww0(i, j, ivy)
       ww0(i, j, ivz) = winf(ivz) + ww0(i, j, ivz)
-      ww0(i, j, irhoe) = -dww3(irhoe) + winf(irhoe)
 ! set the pressure and gamma and possibly the
 ! laminar and eddy viscosity in the halo.
-      gamma0(i, j) = gamma3(i, j)
       pp0(i, j) = pinfcorr - (pp3(i, j)-pinfcorr)
-      if (viscous) rlv0(i, j) = muinf - (rlv3(i, j)-muinf)
-      if (eddymodel) rev0(i, j) = eddyvisinfratio*muinf - (rev3(i, j)-&
-&         eddyvisinfratio*muinf)
+      if (viscous) rlv0(i, j) = -rlv3(i, j)
+      if (eddymodel) rev0(i, j) = -rev3(i, j)
     end do
   end subroutine bcantisymm2ndhalo
 !  differentiation of bcsymmpolar1sthalo in reverse (adjoint) mode (with options i4 dr8 r8 noisize):

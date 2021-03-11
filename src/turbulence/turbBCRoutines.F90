@@ -833,7 +833,7 @@ contains
 
           ! Antisymm
 
-          call bcTurbAntiSymm(nn)
+          call bcTurbInterface(nn)
 
           !=============================================================
 

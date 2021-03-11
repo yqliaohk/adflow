@@ -295,18 +295,14 @@ contains
       ww1(i, j, ivx) = -dww2(ivx) + vn*bcdata(nn)%norm(i, j, 1)
       ww1(i, j, ivy) = -dww2(ivy) + vn*bcdata(nn)%norm(i, j, 2)
       ww1(i, j, ivz) = -dww2(ivz) + vn*bcdata(nn)%norm(i, j, 3)
-      ww1(i, j, irho) = -dww2(irho) + winf(irho)
       ww1(i, j, ivx) = winf(ivx) + ww1(i, j, ivx)
       ww1(i, j, ivy) = winf(ivy) + ww1(i, j, ivy)
       ww1(i, j, ivz) = winf(ivz) + ww1(i, j, ivz)
-      ww1(i, j, irhoe) = -dww2(irhoe) + winf(irhoe)
 ! set the pressure and gamma and possibly the
 ! laminar and eddy viscosity in the halo.
-      gamma1(i, j) = gamma2(i, j)
       pp1(i, j) = pinfcorr - (pp2(i, j)-pinfcorr)
-      if (viscous) rlv1(i, j) = muinf - (rlv2(i, j)-muinf)
-      if (eddymodel) rev1(i, j) = eddyvisinfratio*muinf - (rev2(i, j)-&
-&         eddyvisinfratio*muinf)
+      if (viscous) rlv1(i, j) = -rlv2(i, j)
+      if (eddymodel) rev1(i, j) = -rev2(i, j)
     end do
   end subroutine bcantisymm1sthalo
   subroutine bcantisymm2ndhalo(nn)
@@ -344,18 +340,14 @@ contains
       ww0(i, j, ivx) = -dww3(ivx) + vn*bcdata(nn)%norm(i, j, 1)
       ww0(i, j, ivy) = -dww3(ivy) + vn*bcdata(nn)%norm(i, j, 2)
       ww0(i, j, ivz) = -dww3(ivz) + vn*bcdata(nn)%norm(i, j, 3)
-      ww0(i, j, irho) = -dww3(irho) + winf(irho)
       ww0(i, j, ivx) = winf(ivx) + ww0(i, j, ivx)
       ww0(i, j, ivy) = winf(ivy) + ww0(i, j, ivy)
       ww0(i, j, ivz) = winf(ivz) + ww0(i, j, ivz)
-      ww0(i, j, irhoe) = -dww3(irhoe) + winf(irhoe)
 ! set the pressure and gamma and possibly the
 ! laminar and eddy viscosity in the halo.
-      gamma0(i, j) = gamma3(i, j)
       pp0(i, j) = pinfcorr - (pp3(i, j)-pinfcorr)
-      if (viscous) rlv0(i, j) = muinf - (rlv3(i, j)-muinf)
-      if (eddymodel) rev0(i, j) = eddyvisinfratio*muinf - (rev3(i, j)-&
-&         eddyvisinfratio*muinf)
+      if (viscous) rlv0(i, j) = -rlv3(i, j)
+      if (eddymodel) rev0(i, j) = -rev3(i, j)
     end do
   end subroutine bcantisymm2ndhalo
   subroutine bcsymmpolar1sthalo(nn)

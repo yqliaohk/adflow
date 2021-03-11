@@ -795,6 +795,58 @@ bocos:do nn=1,nbocos
       end do
     end do
   end subroutine bcturboutflow
+  subroutine bcturbantisymm(nn)
+!
+!       bcturbsymm applies the implicit treatment of the symmetry
+!       boundary condition (or inviscid wall) to subface nn. as the
+!       symmetry boundary condition is independent of the turbulence
+!       model, this routine is valid for all models. it is assumed
+!       that the pointers in blockpointers are already set to the
+!       correct block on the correct grid level.
+!
+    use constants
+    use blockpointers
+    use flowvarrefstate
+    implicit none
+!
+!      subroutine arguments.
+!
+    integer(kind=inttype), intent(in) :: nn
+!
+!      local variables.
+!
+    integer(kind=inttype) :: i, j, l
+! loop over the faces of the subfaces and set the values of bmt
+! for an implicit treatment. for a antisymmetry face this means
+! that the halo value is set to the internal value with an opposit
+! perturbation.
+    do j=bcdata(nn)%jcbeg,bcdata(nn)%jcend
+      do i=bcdata(nn)%icbeg,bcdata(nn)%icend
+        do l=nt1,nt2
+          select case  (bcfaceid(nn)) 
+          case (imin) 
+            bmti1(i, j, l, l) = one
+            bvti1(i, j, l) = two*winf(l)
+          case (imax) 
+            bmti2(i, j, l, l) = one
+            bvti2(i, j, l) = two*winf(l)
+          case (jmin) 
+            bmtj1(i, j, l, l) = one
+            bvtj1(i, j, l) = two*winf(l)
+          case (jmax) 
+            bmtj2(i, j, l, l) = one
+            bvtj2(i, j, l) = two*winf(l)
+          case (kmin) 
+            bmtk1(i, j, l, l) = one
+            bvtk1(i, j, l) = two*winf(l)
+          case (kmax) 
+            bmtk2(i, j, l, l) = one
+            bvtk2(i, j, l) = two*winf(l)
+          end select
+        end do
+      end do
+    end do
+  end subroutine bcturbantisymm
 !  differentiation of bcturbtreatment in reverse (adjoint) mode (with options i4 dr8 r8 noisize):
 !   gradient     of useful results: winf *bvtj1 *bvtj2 *w *rlv
 !                *bvtk1 *bvtk2 *d2wall *bvti1 *bvti2
@@ -856,7 +908,7 @@ bocos:do nn=1,nbocos
           call bcturbfarfield_b(nn)
         end if
       else if (branch .eq. 2) then
-        call bcturbantisymm_b(nn)
+        call bcturbinterface_b(nn)
       else if (branch .eq. 3) then
         call bcturbwall_b(nn)
       end if
@@ -1072,92 +1124,6 @@ bocos:do nn=1,nbocos
       end do
     end do
   end subroutine bcturbinterface_b
-!  differentiation of bcturbantisymm in reverse (adjoint) mode (with options i4 dr8 r8 noisize):
-!   gradient     of useful results: winf *bvtj1 *bvtj2 *bvtk1 *bvtk2
-!                *bvti1 *bvti2
-!   with respect to varying inputs: winf *bvtj1 *bvtj2 *bvtk1 *bvtk2
-!                *bvti1 *bvti2
-!   plus diff mem management of: bvtj1:in bvtj2:in bvtk1:in bvtk2:in
-!                bvti1:in bvti2:in
-  subroutine bcturbantisymm_b(nn)
-!
-!       bcturbsymm applies the implicit treatment of the symmetry
-!       boundary condition (or inviscid wall) to subface nn. as the
-!       symmetry boundary condition is independent of the turbulence
-!       model, this routine is valid for all models. it is assumed
-!       that the pointers in blockpointers are already set to the
-!       correct block on the correct grid level.
-!
-    use constants
-    use blockpointers
-    use flowvarrefstate
-    implicit none
-!
-!      subroutine arguments.
-!
-    integer(kind=inttype), intent(in) :: nn
-!
-!      local variables.
-!
-    integer(kind=inttype) :: i, j, l
-    integer :: branch
-! loop over the faces of the subfaces and set the values of bmt
-! for an implicit treatment. for a antisymmetry face this means
-! that the halo value is set to the internal value with an opposit
-! perturbation.
-    do j=bcdata(nn)%jcbeg,bcdata(nn)%jcend
-      do i=bcdata(nn)%icbeg,bcdata(nn)%icend
-        do l=nt1,nt2
-          select case  (bcfaceid(nn)) 
-          case (imin) 
-            call pushcontrol3b(5)
-          case (imax) 
-            call pushcontrol3b(4)
-          case (jmin) 
-            call pushcontrol3b(3)
-          case (jmax) 
-            call pushcontrol3b(2)
-          case (kmin) 
-            call pushcontrol3b(1)
-          case (kmax) 
-            call pushcontrol3b(0)
-          case default
-            call pushcontrol3b(6)
-          end select
-        end do
-      end do
-    end do
-    do j=bcdata(nn)%jcend,bcdata(nn)%jcbeg,-1
-      do i=bcdata(nn)%icend,bcdata(nn)%icbeg,-1
-        do l=nt2,nt1,-1
-          call popcontrol3b(branch)
-          if (branch .lt. 3) then
-            if (branch .eq. 0) then
-              winfd(l) = winfd(l) + two*bvtk2d(i, j, l)
-              bvtk2d(i, j, l) = 0.0_8
-            else if (branch .eq. 1) then
-              winfd(l) = winfd(l) + two*bvtk1d(i, j, l)
-              bvtk1d(i, j, l) = 0.0_8
-            else
-              winfd(l) = winfd(l) + two*bvtj2d(i, j, l)
-              bvtj2d(i, j, l) = 0.0_8
-            end if
-          else if (branch .lt. 5) then
-            if (branch .eq. 3) then
-              winfd(l) = winfd(l) + two*bvtj1d(i, j, l)
-              bvtj1d(i, j, l) = 0.0_8
-            else
-              winfd(l) = winfd(l) + two*bvti2d(i, j, l)
-              bvti2d(i, j, l) = 0.0_8
-            end if
-          else if (branch .eq. 5) then
-            winfd(l) = winfd(l) + two*bvti1d(i, j, l)
-            bvti1d(i, j, l) = 0.0_8
-          end if
-        end do
-      end do
-    end do
-  end subroutine bcturbantisymm_b
   subroutine bcturbtreatment()
 !
 !       bcturbtreatment sets the arrays bmti1, bvti1, etc, such that
@@ -1235,7 +1201,7 @@ bocos:do nn=1,nbocos
         call bcturbsymm(nn)
       case (antisymm) 
 ! antisymm
-        call bcturbantisymm(nn)
+        call bcturbinterface(nn)
       case (farfield) 
 !=============================================================
 ! farfield. the kind of boundary condition to be applied,
@@ -1416,58 +1382,6 @@ bocos:do nn=1,nbocos
       end do
     end do
   end subroutine bcturbsymm
-  subroutine bcturbantisymm(nn)
-!
-!       bcturbsymm applies the implicit treatment of the symmetry
-!       boundary condition (or inviscid wall) to subface nn. as the
-!       symmetry boundary condition is independent of the turbulence
-!       model, this routine is valid for all models. it is assumed
-!       that the pointers in blockpointers are already set to the
-!       correct block on the correct grid level.
-!
-    use constants
-    use blockpointers
-    use flowvarrefstate
-    implicit none
-!
-!      subroutine arguments.
-!
-    integer(kind=inttype), intent(in) :: nn
-!
-!      local variables.
-!
-    integer(kind=inttype) :: i, j, l
-! loop over the faces of the subfaces and set the values of bmt
-! for an implicit treatment. for a antisymmetry face this means
-! that the halo value is set to the internal value with an opposit
-! perturbation.
-    do j=bcdata(nn)%jcbeg,bcdata(nn)%jcend
-      do i=bcdata(nn)%icbeg,bcdata(nn)%icend
-        do l=nt1,nt2
-          select case  (bcfaceid(nn)) 
-          case (imin) 
-            bmti1(i, j, l, l) = one
-            bvti1(i, j, l) = two*winf(l)
-          case (imax) 
-            bmti2(i, j, l, l) = one
-            bvti2(i, j, l) = two*winf(l)
-          case (jmin) 
-            bmtj1(i, j, l, l) = one
-            bvtj1(i, j, l) = two*winf(l)
-          case (jmax) 
-            bmtj2(i, j, l, l) = one
-            bvtj2(i, j, l) = two*winf(l)
-          case (kmin) 
-            bmtk1(i, j, l, l) = one
-            bvtk1(i, j, l) = two*winf(l)
-          case (kmax) 
-            bmtk2(i, j, l, l) = one
-            bvtk2(i, j, l) = two*winf(l)
-          end select
-        end do
-      end do
-    end do
-  end subroutine bcturbantisymm
 !  differentiation of bcturbwall in reverse (adjoint) mode (with options i4 dr8 r8 noisize):
 !   gradient     of useful results: *bvtj1 *bvtj2 *w *rlv *bvtk1
 !                *bvtk2 *d2wall *bvti1 *bvti2
