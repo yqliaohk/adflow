@@ -929,27 +929,27 @@ bocos:do nn=1,nbocos
         do l=nt1,nt2
           select case  (bcfaceid(nn)) 
           case (imin) 
-            bmti1(i, j, l, l) = -one
+            bmti1(i, j, l, l) = one
             bvti1d(i, j, l) = two*winfd(l)
             bvti1(i, j, l) = two*winf(l)
           case (imax) 
-            bmti2(i, j, l, l) = -one
+            bmti2(i, j, l, l) = one
             bvti2d(i, j, l) = two*winfd(l)
             bvti2(i, j, l) = two*winf(l)
           case (jmin) 
-            bmtj1(i, j, l, l) = -one
+            bmtj1(i, j, l, l) = one
             bvtj1d(i, j, l) = two*winfd(l)
             bvtj1(i, j, l) = two*winf(l)
           case (jmax) 
-            bmtj2(i, j, l, l) = -one
+            bmtj2(i, j, l, l) = one
             bvtj2d(i, j, l) = two*winfd(l)
             bvtj2(i, j, l) = two*winf(l)
           case (kmin) 
-            bmtk1(i, j, l, l) = -one
+            bmtk1(i, j, l, l) = one
             bvtk1d(i, j, l) = two*winfd(l)
             bvtk1(i, j, l) = two*winf(l)
           case (kmax) 
-            bmtk2(i, j, l, l) = -one
+            bmtk2(i, j, l, l) = one
             bvtk2d(i, j, l) = two*winfd(l)
             bvtk2(i, j, l) = two*winf(l)
           end select
@@ -1245,22 +1245,22 @@ bocos:do nn=1,nbocos
         do l=nt1,nt2
           select case  (bcfaceid(nn)) 
           case (imin) 
-            bmti1(i, j, l, l) = -one
+            bmti1(i, j, l, l) = one
             bvti1(i, j, l) = two*winf(l)
           case (imax) 
-            bmti2(i, j, l, l) = -one
+            bmti2(i, j, l, l) = one
             bvti2(i, j, l) = two*winf(l)
           case (jmin) 
-            bmtj1(i, j, l, l) = -one
+            bmtj1(i, j, l, l) = one
             bvtj1(i, j, l) = two*winf(l)
           case (jmax) 
-            bmtj2(i, j, l, l) = -one
+            bmtj2(i, j, l, l) = one
             bvtj2(i, j, l) = two*winf(l)
           case (kmin) 
-            bmtk1(i, j, l, l) = -one
+            bmtk1(i, j, l, l) = one
             bvtk1(i, j, l) = two*winf(l)
           case (kmax) 
-            bmtk2(i, j, l, l) = -one
+            bmtk2(i, j, l, l) = one
             bvtk2(i, j, l) = two*winf(l)
           end select
         end do

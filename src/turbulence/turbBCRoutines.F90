@@ -695,22 +695,22 @@ contains
           do l=nt1,nt2
              select case (BCFaceID(nn))
              case (iMin)
-                bmti1(i,j,l,l) = -one
+                bmti1(i,j,l,l) = one
                 bvti1(i,j,l) = two*wInf(l)
              case (iMax)
-                bmti2(i,j,l,l) = -one
+                bmti2(i,j,l,l) = one
                 bvti2(i,j,l) = two*wInf(l)
              case (jMin)
-                bmtj1(i,j,l,l) = -one
+                bmtj1(i,j,l,l) = one
                 bvtj1(i,j,l) = two*wInf(l)
              case (jMax)
-                bmtj2(i,j,l,l) = -one
+                bmtj2(i,j,l,l) = one
                 bvtj2(i,j,l) = two*wInf(l)
              case (kMin)
-                bmtk1(i,j,l,l) = -one
+                bmtk1(i,j,l,l) = one
                 bvtk1(i,j,l) = two*wInf(l)
              case (kMax)
-                bmtk2(i,j,l,l) = -one
+                bmtk2(i,j,l,l) = one
                 bvtk2(i,j,l) = two*wInf(l)
              end select
              
